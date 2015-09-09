@@ -1,0 +1,2 @@
+Date		Start	Stop	Activity	Comments
+09/09/15	15:00	18:00	coding		finished subset 0
