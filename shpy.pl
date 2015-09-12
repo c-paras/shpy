@@ -43,6 +43,7 @@ while ($line = <>) {
 			push @code, $leading_whitespace."subprocess.call(['ls', '-l'])";
 		}
 
+		import("subprocess");
 	} elsif ($line =~ /^(\s*)ls ?(.*)?/) {
 		$leading_whitespace = $1;
 
@@ -53,24 +54,40 @@ while ($line = <>) {
 			push @code, $leading_whitespace."subprocess.call('ls')";
 		}
 
+		import("subprocess");
 	} elsif ($line =~ /^(\s*)pwd/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."subprocess.call(['pwd'])";
+		import("subprocess");
 	} elsif ($line =~ /^(\s*)id/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."subprocess.call(['id'])";
+		import("subprocess");
 	} elsif ($line =~ /^(\s*)date/) {
 		$leading_whitespace = $1;
 		push @code, "subprocess.call(['date'])";
-	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.*)/) { #variable initialisation
+		import("subprocess");
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.*)/) {
+		#handles variable initialisation 'var=val'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = '$3'";
 	} elsif ($line =~ /^(\s*)cd (.*)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."os.chdir('$2')";
+		import("os");
 	} elsif ($line =~ /^(\s*)exit ([0-9]*)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.exit($2)";
+		import("sys");
+	} elsif ($line =~ /^(\s*)read (.*)/) {
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."$2 = sys.stdin.readline().rstrip()";
+		import("sys");
+	} elsif ($line =~ /^for (.*) in \*\.(.*)/) {
+		$loop_variable = $1;
+		$file_type = $2;
+		push @code, "for $loop_variable in sorted(glob.glob(\"*.$file_type\")):";
+		import("glob");
 	} elsif ($line =~ /^for (.*) in (.*)/) {
 		$loop_variable = $1;
 		@args = split / /, $2;
@@ -88,6 +105,8 @@ while ($line = <>) {
 		push @code, "for $loop_variable in $loop";
 	} elsif ($line =~ /^do/ || $line =~ /^done/) {
 		#prevents 'do' and 'done' from being appended to python code
+	} elsif ($line =~ /^(\s*)$/) {
+		push @code, $1;
 	} else {
 		#turns all other lines into untranslated comments
 		push @code, "#$line";
@@ -95,8 +114,11 @@ while ($line = <>) {
 
 }
 
-unshift @code, "import subprocess" if grep(/^subprocess.call\(/, @code);
-unshift @code, "import os" if grep(/^os.chdir\(/, @code);
-unshift @code, "import sys" if grep(/^sys./, @code);
 unshift @code, "$interpreter" if $interpreter ne "";
 print "$_\n" foreach @code;
+
+#prepends an import of the given package if not already present
+sub import {
+	my $package = $_[0];
+	unshift @code, "import $package" if !grep(/^import $package$/, @code);
+}
