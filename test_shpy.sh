@@ -25,7 +25,15 @@ do
 		echo
 	elif [ "$base" == "args" ]
 	then
-		#skips subset 2 exceptions
+		#skips subset 2 exception
+		~/ass1/shpy.pl "$file" > code
+		echo
+		cat code
+		echo "Test: $base SKIPPED"
+		echo
+	elif [ "$base" == "l" ]
+	then
+		#skips subset 3 exception
 		~/ass1/shpy.pl "$file" > code
 		echo
 		cat code

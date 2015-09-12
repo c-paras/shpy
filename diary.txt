@@ -1,3 +1,4 @@
-Date		Start	Stop	Activity	Comments
-09/09/15	15:00	18:00	coding		finished subset 0
-12/09/15	16:00	18:00	coding		finished subset 1
+Date	Time		Description
+09/9	15:00-18:00	finished subset 0 completely
+12/9	16:00-18:00	did subset 1, without ? or [] compatability
+12/9	19:00-20:30	did subset 2 & 3 without nesting or echo -n compatability
