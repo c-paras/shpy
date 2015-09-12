@@ -10,7 +10,14 @@ while ($line = <>) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
 	} elsif ($line =~ /^(\s*)echo (.*)/) {
 		$leading_whitespace = $1;
-		@str = split / /, $2;
+		$echo_to_print = $2;
+
+		if ($echo_to_print =~ /^'/ && $echo_to_print =~ /'$/) {
+			push @code, $leading_whitespace."print $echo_to_print";
+			next;
+		}
+
+		@str = split / /, $echo_to_print;
 
 		#removes $ from variables
 		if ($str[0] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
@@ -23,8 +30,11 @@ while ($line = <>) {
 		shift @str;
 		foreach $word (@str) {
 
-			#removes $ from variables
-			if ($word =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
+			#removes $ from variables and formats words as <var> or '<var>'
+			if ($word =~ /\$([0-9]+)/) {
+				$string .= ", sys.argv[$1]" if $1 ne "";
+				import("sys");
+			} elsif ($word =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
 				$string .= ", $1" if $1 ne "";
 			} else {
 				$string .= ", '$word'" if $word ne "";
@@ -103,8 +113,14 @@ while ($line = <>) {
 
 		$loop =~ s/, $/:/; #converts last instance of ", " to :
 		push @code, "for $loop_variable in $loop";
-	} elsif ($line =~ /^do/ || $line =~ /^done/) {
-		#prevents 'do' and 'done' from being appended to python code
+	} elsif ($line =~ /^if test (.*) = (.*)/) {
+		push @code, "if '$1' == '$2':";
+	} elsif ($line =~ /^elif test (.*) = (.*)/) {
+		push @code, "elif '$1' == '$2':";
+	} elsif ($line =~ /^else/) {
+		push @code, "else:";
+	} elsif ($line =~ /^do/ || $line =~ /^done/ || $line =~ /^then/ || $line =~ /^fi/) {
+		#prevents 'do', 'done', 'then' and 'fi' from being appended to python code
 	} elsif ($line =~ /^(\s*)$/) {
 		push @code, $1;
 	} else {

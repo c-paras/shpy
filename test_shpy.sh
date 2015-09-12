@@ -13,7 +13,7 @@ do
 		~/ass1/shpy.pl "$file" > code
 		echo
 		cat code
-		echo "$base SKIPPED"
+		echo "Test: $base SKIPPED"
 		echo
 	elif [ "$base" == "for_gcc" -o "$base" == "for_read0" ]
 	then
@@ -21,13 +21,27 @@ do
 		~/ass1/shpy.pl "$file" > code
 		echo
 		cat code
-		echo "$base SKIPPED"
+		echo "Test: $base SKIPPED"
+		echo
+	elif [ "$base" == "args" ]
+	then
+		#skips subset 2 exceptions
+		~/ass1/shpy.pl "$file" > code
+		echo
+		cat code
+		echo "Test: $base SKIPPED"
 		echo
 	else
+		#compares output of shell and python code
 		sh "$file" > tmp1
 		~/ass1/shpy.pl "$file" > code
 		python -u code > tmp2
-		diff tmp1 tmp2  && echo "$base SUCCEEDED" || echo "$base FAILED"
+		diff tmp1 tmp2  && echo "Test: $base SUCCEEDED" && continue
+
+		#aborts if current test failed
+		echo "Test: $base FAILED"
+		echo "Further testing aborted"
+		exit 1
 	fi
 done
 echo "ALL TESTS SUCCEEDED"
