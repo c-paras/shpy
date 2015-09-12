@@ -1,8 +1,8 @@
 #!/bin/sh
 
-tmp1=/tmp/shell_output_$$.txt
-tmp2=/tmp/python_output_$$.txt
-code=/tmp/python_code_$$.py
+tmp1=tmp/shell_output_$$.txt
+tmp2=tmp/python_output_$$.txt
+code=tmp/python_code_$$.py
 
 for file in ~/ass1/examples/$1/*.sh
 do
