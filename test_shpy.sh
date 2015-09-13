@@ -10,41 +10,41 @@ do
 	if [ "$base" == "pwd" -o "$base" == "single" ]
 	then
 		#skips subset 0 exceptions
-		~/ass1/shpy.pl "$file" > code
+		~/ass1/shpy.pl "$file" > $code
 		echo
-		cat code
+		cat $code
 		echo "Test: $base SKIPPED"
 		echo
 	elif [ "$base" == "for_gcc" -o "$base" == "for_read0" ]
 	then
 		#skips subset 1 exceptions
-		~/ass1/shpy.pl "$file" > code
+		~/ass1/shpy.pl "$file" > $code
 		echo
-		cat code
+		cat $code
 		echo "Test: $base SKIPPED"
 		echo
 	elif [ "$base" == "args" ]
 	then
 		#skips subset 2 exception
-		~/ass1/shpy.pl "$file" > code
+		~/ass1/shpy.pl "$file" > $code
 		echo
-		cat code
+		cat $code
 		echo "Test: $base SKIPPED"
 		echo
 	elif [ "$base" == "l" ]
 	then
 		#skips subset 3 exception
-		~/ass1/shpy.pl "$file" > code
+		~/ass1/shpy.pl "$file" > $code
 		echo
-		cat code
+		cat $code
 		echo "Test: $base SKIPPED"
 		echo
 	else
 		#compares output of shell and python code
-		sh "$file" > tmp1
-		~/ass1/shpy.pl "$file" > code
-		python -u code > tmp2
-		diff tmp1 tmp2  && echo "Test: $base SUCCEEDED" && continue
+		sh "$file" > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code > $tmp2
+		diff $tmp1 $tmp2  && echo "Test: $base SUCCEEDED" && continue
 
 		#aborts if current test failed
 		echo "Test: $base FAILED"
@@ -53,4 +53,4 @@ do
 	fi
 done
 echo "ALL TESTS SUCCEEDED"
-rm tmp1 tmp2 code
+rm $tmp1 $tmp2 $code

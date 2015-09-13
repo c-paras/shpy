@@ -1,4 +1,5 @@
-Date	Time		Description
-09/9	15:00-18:00	finished subset 0 completely
-12/9	16:00-18:00	did subset 1, without ? or [] compatability
-12/9	19:00-20:30	did subset 2 & 3 without nesting or echo -n compatability
+Date	Time		Activity	Description
+09/9	15:00-18:00	coding		finished subset 0 completely
+12/9	16:00-18:00	coding		did subset 1 without ? or [] compatibility
+12/9	19:00-20:30	coding		did subset 2 & 3 without nesting or echo -n compatibility
+13/9	10:30-11:00	debugging	fixed issues with importing

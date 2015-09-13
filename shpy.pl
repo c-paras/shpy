@@ -67,6 +67,7 @@ while ($line = <>) {
 		foreach $expression (@shell_exp) {
 			if ($expression =~ /\$([0-9]+)/) {
 				$python_exp .= "sys.argv[$1] "; #handles special vars
+				import("sys");
 			} elsif ($expression =~ /\$(.*)/) {
 				$python_exp .= "int($1) "; #handles variables
 			} else {
@@ -81,11 +82,10 @@ while ($line = <>) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.argv[$3]";
 		import("sys");
-        } elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$(.*)/) {
-                #handles variable initialisation involving 'var=$.*'
-                $leading_whitespace = $1;
-                push @code, $leading_whitespace."$2 = $3";
-                import("sys");
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$(.*)/) {
+		#handles variable initialisation involving 'var=$.*'
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."$2 = $3";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.*)/) {
 		#handles variable initialisation involving 'var=val'
 		$leading_whitespace = $1;
