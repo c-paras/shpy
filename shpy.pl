@@ -17,16 +17,17 @@ while ($line = <>) {
 		convert_echo($leading_whitespace, $echo_to_print);
 	} elsif ($line =~ /^(\s*)ls -([a-z]+) ?(.*)?/) {
 		$leading_whitespace = $1;
+		$arg = $2;
 
 		#handles optional arguments to ls -<options>
 		if ($3 ne "") {
 
-			#handles the case whether the argument is "$@"
-			if ($3 eq '"$@"') {
-				push @code, $leading_whitespace."subprocess.call(['ls', '-$2'] + sys.argv[1:])";
+			#handles the case where the argument is "$[@*]"
+			if ($3 =~ /\$[@*]/) {
+				push @code, $leading_whitespace."subprocess.call(['ls', '-$arg'] + sys.argv[1:])";
 				import("sys");
 			} else {
-				push @code, $leading_whitespace."subprocess.call(['ls', '-$2', '$3'])";
+				push @code, $leading_whitespace."subprocess.call(['ls', '-$arg', '$3'])";
 			}
 
 		} else {
@@ -39,7 +40,16 @@ while ($line = <>) {
 
 		#handles optional arguments to ls
 		if ($2 ne "") {
-			push @code, $leading_whitespace."subprocess.call(['ls', '$2'])";
+			$arg = $2;
+
+			#handles the case where the argument is "$[@*]"
+			if ($arg =~ /\$[@*]/) {
+				push @code, $leading_whitespace."subprocess.call(['ls'] + sys.argv[1:])";
+				import("sys");
+			} else {
+				push @code, $leading_whitespace."subprocess.call(['ls', '$arg'])";
+			}
+
 		} else {
 			push @code, $leading_whitespace."subprocess.call('ls')";
 		}
@@ -68,14 +78,18 @@ while ($line = <>) {
 			if ($expression =~ /\$([0-9]+)/) {
 				$python_exp .= "sys.argv[$1] "; #handles special vars
 				import("sys");
+			} elsif ($expression =~ /\$#/) {
+				$python_exp .= "(len(sys.argv) - 1) "; #handles '$#' var
+				import("sys");
 			} elsif ($expression =~ /\$(.*)/) {
-				$python_exp .= "int($1) "; #handles variables
+				$python_exp .= "int($1) "; #handles all other vars
 			} else {
 				#copies arithmetic operators and numeric values
 				$python_exp .= "$expression ";
 			}
 		}
 
+		$python_exp =~ s/ $//; #removes trailing ' ' char
 		push @code, $leading_whitespace."$variable = $python_exp";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$([0-9]+)/) {
 		#handles variable initialisation involving 'var=$[0-9]+'
@@ -102,10 +116,10 @@ while ($line = <>) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.stdin.readline().rstrip()";
 		import("sys");
-	} elsif ($line =~ /^for (.*) in \*\.(.*)/) {
+	} elsif ($line =~ /^for (.*) in (.*)/) {
 		$loop_variable = $1;
 		$file_type = $2;
-		push @code, "for $loop_variable in sorted(glob.glob(\"*.$file_type\")):";
+		push @code, "for $loop_variable in sorted(glob.glob(\"$file_type\")):";
 		import("glob");
 	} elsif ($line =~ /^for (.*) in (.*)/) {
 		$loop_variable = $1;
@@ -159,7 +173,7 @@ sub import {
 
 #converts numeric test operators to python style
 sub convert_operator {
-	$operator = $_[0];
+	my $operator = $_[0];
 
 	if ($operator eq "eq") {
 		return "eq";
@@ -180,6 +194,7 @@ sub convert_operator {
 #converts calls to echo to calls to print
 sub convert_echo {
 	my ($leading_whitespace, $echo_to_print) = @_;
+
 	#removes double quotes from either side of string if applicable
 	$echo_to_print =~ s/^"//;
 	$echo_to_print =~ s/"$//;
@@ -190,30 +205,32 @@ sub convert_echo {
 		return;
 	}
 
-	@str = split / /, $echo_to_print;
+	my @words = split / /, $echo_to_print;
+	my $string_to_print = "";
+	my $i = 0;
 
-	#removes $ from variables
-	if ($str[0] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
-		$string = "$1" if $1 ne "";
-	} else {
-		$string = "'$str[0]'" if $str[0] ne "";
-	}
-
-	#handles any remaining words on echo line
-	shift @str;
-	foreach $word (@str) {
+	#handles each 'word' on echo line
+	do {
 
 		#removes $ from variables and formats words as <var> or '<var>'
-		if ($word =~ /\$([0-9]+)/) {
-			$string .= ", sys.argv[$1]" if $1 ne "";
+		if ($words[$i] =~ /\$([0-9]+)/) {
+			$string_to_print .= "sys.argv[$1], " if $1 ne "";
 			import("sys");
-		} elsif ($word =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
-			$string .= ", $1" if $1 ne "";
+		} elsif ($words[$i] =~ /\$[@*]/) {
+			$string_to_print .= "sys.arg[1:], ";
+			import("sys");
+		} elsif ($words[$i] =~ /\$#/) {
+			$string_to_print .= "len(sys.argv) - 1, ";
+			import("sys");
+		} elsif ($words[$i] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
+			$string_to_print .= "$1, " if $1 ne "";
 		} else {
-			$string .= ", '$word'" if $word ne "";
+			$string_to_print .= "'$words[$i]', " if $words[$i] ne "";
 		}
 
-	}
+		$i++;
+	} while ($i <= $#words);
 
-	push @code, $leading_whitespace."print $string";
+	$string_to_print =~ s/, $//; #removes trailing ', '
+	push @code, $leading_whitespace."print $string_to_print";
 }

@@ -1,5 +1,6 @@
-Date	Time		Activity	Description
-09/9	15:00-18:00	coding		finished subset 0 completely
-12/9	16:00-18:00	coding		did subset 1 without ? or [] compatibility
-12/9	19:00-20:30	coding		did subset 2 & 3 without nesting or echo -n compatibility
-13/9	10:30-11:00	debugging	fixed issues with importing
+Date		Time		Activity	Description
+09/09/15	15:00-18:00	coding		finished all of subset 0
+12/09/15	16:00-18:00	coding		did subset 1 without ? or [] compatibility
+12/09/15	19:00-20:30	coding		did subset 2 & 3 without nesting or echo -n compatibility
+13/09/15	10:30-11:00	debugging	fixed issues with importing
+16/09/15	21:30-11:30	coding		improved file matching and special variable compatibility
