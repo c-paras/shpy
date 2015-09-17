@@ -8,66 +8,51 @@ while ($line = <>) {
 
 	if ($line =~ /^#!/ && $. == 1) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
-	} elsif ($line =~ /^(#.*)/) {
+	} elsif ($line =~ /^(\s*#.*)/) {
 		push @code, "$1"; #copies start-of-line comments into python code
-	} elsif ($line =~ /^(\s*)echo (.*)/) {
-		#converts calls to echo to calls to print
+	} elsif ($line =~ /^\s*echo\s*$/) {
+		#converts echo without args to print without args
+		push @code, "print";
+	} elsif ($line =~ /^(\s*)echo (.+)/) {
+		#converts all other calls to echo to calls to print
 		$leading_whitespace = $1;
 		$echo_to_print = $2;
 		convert_echo($leading_whitespace, $echo_to_print);
-	} elsif ($line =~ /^(\s*)ls -([a-z]+) ?(.*)?/) {
+	} elsif ($line =~ /^(\s*)ls -([a-z]+) (.+)/) {
+		$leading_whitespace = $1;
+		$options = $2;
+
+		#determines whether the argument is "$[@*]"
+		if ($3 =~ /\$[@*]/) {
+			push @code, $leading_whitespace."subprocess.call(['ls', '-$options'] + sys.argv[1:])";
+			import("sys");
+		} else {
+			push @code, $leading_whitespace."subprocess.call(['ls', '-$options', '$3'])";
+		}
+
+		import("subprocess");
+	} elsif ($line =~ /^(\s*)ls -([a-z]+)/) {
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."subprocess.call(['ls', '-$2'])";
+		import("subprocess");
+	} elsif ($line =~ /^(\s*)ls (.+)/) {
 		$leading_whitespace = $1;
 		$arg = $2;
 
-		#handles optional arguments to ls -<options>
-		if ($3 ne "") {
-
-			#handles the case where the argument is "$[@*]"
-			if ($3 =~ /\$[@*]/) {
-				push @code, $leading_whitespace."subprocess.call(['ls', '-$arg'] + sys.argv[1:])";
-				import("sys");
-			} else {
-				push @code, $leading_whitespace."subprocess.call(['ls', '-$arg', '$3'])";
-			}
-
+		#determines whether the argument is "$[@*]"
+		if ($arg =~ /\$[@*]/) {
+			push @code, $leading_whitespace."subprocess.call(['ls'] + sys.argv[1:])";
+			import("sys");
 		} else {
-			push @code, $leading_whitespace."subprocess.call(['ls', '-$2'])";
+			push @code, $leading_whitespace."subprocess.call(['ls', '$arg'])";
 		}
 
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)ls ?(.*)?/) {
+	} elsif ($line =~ /^(\s*)(ls|pwd|id|date)/) {
 		$leading_whitespace = $1;
-
-		#handles optional arguments to ls
-		if ($2 ne "") {
-			$arg = $2;
-
-			#handles the case where the argument is "$[@*]"
-			if ($arg =~ /\$[@*]/) {
-				push @code, $leading_whitespace."subprocess.call(['ls'] + sys.argv[1:])";
-				import("sys");
-			} else {
-				push @code, $leading_whitespace."subprocess.call(['ls', '$arg'])";
-			}
-
-		} else {
-			push @code, $leading_whitespace."subprocess.call('ls')";
-		}
-
+		push @code, $leading_whitespace."subprocess.call('$2')";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)pwd/) {
-		$leading_whitespace = $1;
-		push @code, $leading_whitespace."subprocess.call(['pwd'])";
-		import("subprocess");
-	} elsif ($line =~ /^(\s*)id/) {
-		$leading_whitespace = $1;
-		push @code, $leading_whitespace."subprocess.call(['id'])";
-		import("subprocess");
-	} elsif ($line =~ /^(\s*)date/) {
-		$leading_whitespace = $1;
-		push @code, $leading_whitespace."subprocess.call(['date'])";
-		import("subprocess");
-	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.*)`/) {
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.+)`/) {
 		#handles variable initialisation involving 'var=`expr .*`'
 		$leading_whitespace = $1;
 		$variable = $2;
@@ -81,7 +66,7 @@ while ($line = <>) {
 			} elsif ($expression =~ /\$#/) {
 				$python_exp .= "(len(sys.argv) - 1) "; #handles '$#' var
 				import("sys");
-			} elsif ($expression =~ /\$(.*)/) {
+			} elsif ($expression =~ /\$(.+)/) {
 				$python_exp .= "int($1) "; #handles all other vars
 			} else {
 				#copies arithmetic operators and numeric values
@@ -91,37 +76,37 @@ while ($line = <>) {
 
 		$python_exp =~ s/ $//; #removes trailing ' ' char
 		push @code, $leading_whitespace."$variable = $python_exp";
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$#/) {
+		#handles variable initialisation involving 'var=$#'
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."$2 = len(sys.argv)";
+		import("sys");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$([0-9]+)/) {
 		#handles variable initialisation involving 'var=$[0-9]+'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.argv[$3]";
 		import("sys");
-	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$(.*)/) {
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$(.+)/) {
 		#handles variable initialisation involving 'var=$.*'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = $3";
-	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.*)/) {
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.+)/) {
 		#handles variable initialisation involving 'var=val'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = '$3'";
-	} elsif ($line =~ /^(\s*)cd (.*)/) {
+	} elsif ($line =~ /^(\s*)cd (.+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."os.chdir('$2')";
 		import("os");
-	} elsif ($line =~ /^(\s*)exit ([0-9]*)/) {
+	} elsif ($line =~ /^(\s*)exit ([0-9]+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.exit($2)";
 		import("sys");
-	} elsif ($line =~ /^(\s*)read (.*)/) {
+	} elsif ($line =~ /^(\s*)read (.+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.stdin.readline().rstrip()";
 		import("sys");
-	} elsif ($line =~ /^for (.*) in (.*)/) {
-		$loop_variable = $1;
-		$file_type = $2;
-		push @code, "for $loop_variable in sorted(glob.glob(\"$file_type\")):";
-		import("glob");
-	} elsif ($line =~ /^for (.*) in (.*)/) {
+	} elsif ($line =~ /^for (.+) in ([^\?\*]+)/) {
 		$loop_variable = $1;
 		@args = split / /, $2;
 
@@ -136,19 +121,26 @@ while ($line = <>) {
 
 		$loop_args =~ s/, $/:/; #converts last instance of ", " to :
 		push @code, "for $loop_variable in $loop_args";
-	} elsif ($line =~ /^if test -r (.*)/) {
+	} elsif ($line =~ /^for (.+) in (.+)/) {
+		$loop_variable = $1;
+		$file_type = $2;
+		push @code, "for $loop_variable in sorted(glob.glob(\"$file_type\")):";
+		import("glob");
+	} elsif ($line =~ /^if test -r (.+)/) {
 		push @code, "if os.access('$1', os.R_OK):";
 		import("os");
-	} elsif ($line =~ /^if test -d (.*)/) {
+	} elsif ($line =~ /^if test -d (.+)/) {
 		push @code, "if os.path.isdir('$1'):";
 		import("os");
-	} elsif ($line =~ /^if test (.*) = (.*)/) {
-		push @code, "if '$1' == '$2':"; #handles simple if
-	} elsif ($line =~ /^elif test (.*) = (.*)/) {
-		push @code, "elif '$1' == '$2':"; #handles simple elif
+	} elsif ($line =~ /^if test (.+) (.+) (.+)/) {
+		$operator = convert_operator($2);
+		push @code, "if '$1' $operator '$3':"; #handles if's
+	} elsif ($line =~ /^elif test (.+) (.+) (.+)/) {
+		$operator = convert_operator($2);
+		push @code, "elif '$1' $operator '$3':"; #handles elif's
 	} elsif ($line =~ /^else$/) {
 		push @code, "else:"; #translates 'else' into 'else:'
-	} elsif ($line =~ /^while test \$(.*) -(.*) \$(.*)/) {
+	} elsif ($line =~ /^while test \$(.+) -(.+) \$(.+)/) {
 		$operator = convert_operator($2);
 		push @code, "while int($1) $operator int($3):";
 	} elsif ($line =~ /^\s*do\s*$/ || $line =~ /^\s*done\s*$/ || $line =~ /^\s*then\s*$/ || $line =~ /^\s*fi\s*$/) {
@@ -177,6 +169,8 @@ sub convert_operator {
 
 	if ($operator eq "eq") {
 		return "eq";
+	} elsif ($operator eq "=") {
+		return "==";
 	} elsif ($operator eq "ne") {
 		return "!=";
 	} elsif ($operator eq "lt") {

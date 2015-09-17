@@ -31,9 +31,9 @@ do
 		cat $code
 		echo "Test: $base SKIPPED"
 		echo
-	elif [ "$base" == "l" ]
+	elif [ "$base" == "l" -o "$base" == "sequence0" ]
 	then
-		#skips subset 3 exception
+		#skips subset 3 exceptions
 		~/ass1/shpy.pl "$file" > $code
 		echo
 		cat $code
