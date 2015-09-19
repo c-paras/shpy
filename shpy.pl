@@ -10,15 +10,24 @@ while ($line = <>) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
 	} elsif ($line =~ /^(\s*#.*)/) {
 		push @code, "$1"; #copies start-of-line comments into python code
-	} elsif ($line =~ /^(\s*)echo -n ?(["']["'])?\s*$/) {
+	} elsif ($line =~ /^(\s*)echo -n ["'](\s*)["']\s*(#.*)?$/) {
+		#converts echo -n with blank string to sys.stdout.write("\s*")
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."sys.stdout.write(\"$2\")";
+		import("sys");
+	} elsif ($line =~ /^(\s*)echo -n\s*(#.*)?$/) {
 		#converts echo -n without args to sys.stdout.write("")
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.stdout.write(\"\")";
 		import("sys");
-	} elsif ($line =~ /^(\s*)echo ?(["']["'])?\s*$/) {
+	} elsif ($line =~ /^(\s*)echo\s*(#.*)?$/) {
 		#converts echo without args to print without args
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."print";
+	} elsif ($line =~ /^(\s*)echo ["'](\s*)["']\s*(#.*)?$/) {
+		#converts echo with blank string to print with blank string
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."print \"$2\"";
 	} elsif ($line =~ /^(\s*)echo -n (.+)/) {
 		#converts all other calls to echo -n to calls to print
 		my ($leading_whitespace, $echo_to_print) = ($1, $2);
@@ -212,17 +221,17 @@ while ($line = <>) {
 		push @code, "#$line [UNTRANSLATED CODE]";
 	}
 
-	#stores end-of-line comments in array
+	#stores end-of-line comments in a hash
 	if ($line =~ /(\s*#.*)$/ && $line !~ /^\s*#.*$/) {
-		$comments[$. - 1] = $1; #aligns comment with line number in code
+		$comments{$code[$#code]} = $1; #aligns comment with current line in code
 	}
 
 }
 
 #copies end-of-line comments into python source code
 $i = 0;
-for ($i..$#comments) {
-	$code[$i] .= $comments[$i] if $comments[$i]; #appends comment to end of line
+for ($i..$#code) {
+	$code[$i] .= $comments{$code[$i]} if $comments{$code[$i]}; #appends comment to end of line
 	$i++;
 }
 
@@ -265,22 +274,22 @@ sub convert_echo {
 	my ($leading_whitespace, $echo_to_print, $print_newline) = @_;
 
 	#handles the case where entire string passed to echo is within single quotes
-	if ($echo_to_print =~ /^'/ && $echo_to_print =~ /'$/) {
+	if ($echo_to_print =~ /^'.*'$/) {
+		$echo_to_print =~ s/'//g;
 		if ($print_newline == 1) {
-			push @code, $leading_whitespace."print $echo_to_print";
+			push @code, $leading_whitespace."print '$echo_to_print'";
 		} elsif ($print_newline == 0) {
-			push @code, $leading_whitespace."sys.stdout.write($echo_to_print)";
+			push @code, $leading_whitespace."sys.stdout.write('$echo_to_print')";
 			import("sys");
 		}
 		return;
 	}
 
-	#removes double quotes from either side of string if applicable
-	$echo_to_print =~ s/^"//;
-	$echo_to_print =~ s/"$//;
-
+	$interpolate_variables = 1 if $echo_to_print =~ /^\".*\"$/;
+	$interpolate_variables = 0 if $echo_to_print !~ /^\".*\"$/;
+	$echo_to_print =~ s/"//g; #removes all occurances of double quotes from string
 	my @words = split / /, $echo_to_print;
-	my $string_to_print = "";
+	$string_to_print = "";
 	my $i = 0;
 
 	#handles each 'word' on echo line
@@ -288,24 +297,38 @@ sub convert_echo {
 
 		#removes $ from variables and formats words as <var> or '<var>'
 		if ($words[$i] =~ /\$([0-9]+)/) {
-			$string_to_print .= "sys.argv[$1], ";
+			append_to_string($words[$i], "sys.argv[$1]");
 			import("sys");
 		} elsif ($words[$i] =~ /\$[@*]/) {
-			$string_to_print .= "sys.arg[1:], ";
+			append_to_string($words[$i], "sys.arg[1:]");
 			import("sys");
 		} elsif ($words[$i] =~ /\$#/) {
-			$string_to_print .= "len(sys.argv) - 1, ";
+			append_to_string($words[$i], "len(sys.argv) - 1");
 			import("sys");
 		} elsif ($words[$i] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
-			$string_to_print .= "$1, ";
+			append_to_string($words[$i], $1);
 		} else {
-			$string_to_print .= "'$words[$i]', " if $words[$i];
+			$string_to_print .= "\"$words[$i]\", " if $words[$i];
 		}
 
 		$i++;
 	}
 
 	$string_to_print =~ s/, $// if $print_newline; #removes trailing ', '
-	push @code, $leading_whitespace."print $string_to_print";
+	push @code, $leading_whitespace."print $string_to_print" if $print_newline;
+	push @code, $leading_whitespace."print $string_to_print" if !$print_newline && $string_to_print;
 	push @code, $leading_whitespace."sys.stdout.write('')" if !$print_newline;
+}
+
+#appends variables and adjacent chars/single quotes to string to be printed
+sub append_to_string {
+	my ($word, $match) = @_;
+	if ($word =~ /'\$$match'/ && $interpolate_variables == 0) {
+		$string_to_print .= "'\$$match', ";
+		return;	
+	}
+	$string_to_print .= "\"$1\" + " if $word =~ /^([^\$]+)\$/; #appends leading chars
+	$string_to_print .= "$match, " if $word !~ /'$/;
+	$string_to_print .= "$match + " if $word =~ /'$/;
+	$string_to_print .= "\"$1\", " if $word =~ /('+)$/; #appends trailing '+
 }

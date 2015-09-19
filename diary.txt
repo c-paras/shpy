@@ -9,3 +9,4 @@ Date		Time		Activity	Description
 19/09/2015	13:00-14:00	coding		implemented more external commands and genaralised file test and comparison test operators
 19/09/2015	15:00-16:00	coding		added code to handle in-line comments and improved $[#@*] variable compatability
 19/09/2015	17:00-19:00	coding		implemented echo -n and if/for/while nesting
+19/09/2015	20:30-23:00	debugging	found bugs with in-line comments and echo -n
