@@ -50,7 +50,7 @@ while ($line = <>) {
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)(ls|pwd|id|date)/) {
 		$leading_whitespace = $1;
-		push @code, $leading_whitespace."subprocess.call('$2')";
+		push @code, $leading_whitespace."subprocess.call(['$2'])";
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.+)`/) {
 		#handles variable initialisation involving 'var=`expr .*`'
