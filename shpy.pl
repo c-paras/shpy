@@ -1,7 +1,5 @@
 #!/usr/bin/perl -w
 
-$interpreter = "";
-
 #reads input shell source code from file(s) or from stdin
 while ($line = <>) {
 	chomp $line;
@@ -170,19 +168,34 @@ while ($line = <>) {
 		push @code, "$control int($first) $operator int($second):" if $shell_operator !~ /=/;
 	} elsif ($line =~ /^else$/) {
 		push @code, "else:"; #translates 'else' into 'else:'
-	} elsif ($line =~ /^\s*(do|done|then|fi)\s*$/) {
-		#prevents 'do', 'done', 'then' and 'fi' from being appended to code
+	} elsif ($line =~ /^\s*(do|done|then|fi)/) {
+		push @code, " "; #appends blank line for correct alignment of comments
 	} elsif ($line =~ /^\s*$/) {
-		push @code, $line; #copies blank and whitespace lines into python code
+		push @code, ""; #transfers blank lines for correct alignment of comments
 	} else {
 		#converts all other lines into untranslated comments
 		push @code, "#$line [untranslated code]";
 	}
 
+	#stores end-of-line comments in array
+	if ($line =~ /(\s*#.*)$/ && $line !~ /^\s*#.*$/) {
+		$comments[$. - 1] = $1; #aligns comment with line number in code
+	}
+
 }
 
-unshift @code, "$interpreter" if $interpreter ne "";
-print "$_\n" foreach @code;
+#copies end-of-line comments into python source code
+$i = 0;
+for ($i..$#comments) {
+	$code[$i] .= $comments[$i] if $comments[$i]; #appends comment to end of line
+	$i++;
+}
+
+#prints rendered python code to stdout
+unshift @code, "$interpreter" if $interpreter;
+foreach $line (@code) {
+	print "$line\n" if $line ne " ";
+}
 
 #prepends an import of the given package to the code if not already present
 sub import {
@@ -190,7 +203,7 @@ sub import {
 	unshift @code, "import $package" if !grep(/^import $package$/, @code);
 }
 
-#converts numeric test operators to python style
+#converts numeric and non-numeric test operators to python style operators
 sub convert_operator {
 	my $operator = $_[0];
 
