@@ -7,4 +7,4 @@ Date		Time		Activity	Description
 17/09/2015	09:00-11:00	debugging	fixed issues with optional args to echo/ls and improved pattern matching
 19/09/2015	11:00-12:00	testing		improved testing suite for subsets 0 to 3
 19/09/2015	13:00-14:00	coding		implemented more external commands and genaralised file test and comparison test operators
-19/09/2015	15:00-		coding		added code to handle in-line comments
+19/09/2015	15:00-16:00	coding		added code to handle in-line comments and improved $[#@*] variable compatability

@@ -22,14 +22,17 @@ while ($line = <>) {
 		my ($leading_whitespace, $echo_to_print) = ($1, $2);
 		convert_echo($leading_whitespace, $echo_to_print);
 	} elsif ($line =~ /^(\s*)ls -([a-z]+) (.+)/) {
-		my ($leading_whitespace, $options) = ($1, $2);
+		my ($leading_whitespace, $options, $arg) = ($1, $2, $3);
 
-		#determines whether the argument is "$[@*]"
-		if ($3 =~ /\$[@*]/) {
+		#handles the arguments "$*" and $[@*] separately
+		if ($arg =~ /\"\$\*\"/) {
+			push @code, $leading_whitespace."subprocess.call(['ls', '-$options'] + ' '.join(sys.argv[1:]))";
+			import("sys");
+		} elsif ($arg =~ /\"?\$[\@\*]/) {
 			push @code, $leading_whitespace."subprocess.call(['ls', '-$options'] + sys.argv[1:])";
 			import("sys");
 		} else {
-			push @code, $leading_whitespace."subprocess.call(['ls', '-$options', '$3'])";
+			push @code, $leading_whitespace."subprocess.call(['ls', '-$options', '$arg'])";
 		}
 
 		import("subprocess");
@@ -40,8 +43,11 @@ while ($line = <>) {
 	} elsif ($line =~ /^(\s*)ls (.+)/) {
 		my ($leading_whitespace, $arg) = ($1, $2);
 
-		#determines whether the argument is "$[@*]"
-		if ($arg =~ /\$[@*]/) {
+		#handles the arguments "$*" and $[@*] separately
+		if ($arg =~ /\"\$\*\"/) {
+			push @code, $leading_whitespace."subprocess.call(['ls'] + ' '.join(sys.argv[1:]))";
+			import("sys");
+		} elsif ($arg =~ /\"?\$[\@\*]/) {
 			push @code, $leading_whitespace."subprocess.call(['ls'] + sys.argv[1:])";
 			import("sys");
 		} else {
@@ -49,7 +55,7 @@ while ($line = <>) {
 		}
 
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)chmod ([0-7]{1,3}) (.*)/) {
+	} elsif ($line =~ /^(\s*)chmod ([0-7]{1,3}) (.+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."subprocess.call(['chmod', '$2', '$3'])";
 		import("subprocess");
@@ -99,7 +105,7 @@ while ($line = <>) {
 		push @code, $leading_whitespace."$2 = sys.argv[$3]";
 		import("sys");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$(.+)/) {
-		#handles variable initialisation involving 'var=$.*'
+		#handles variable initialisation involving 'var=$.+'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = $3";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.+)/) {
@@ -118,16 +124,22 @@ while ($line = <>) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.stdin.readline().rstrip()";
 		import("sys");
+	} elsif ($line =~ /^for (.+) in \"\$\*\"/) {
+		#handles for loops involving "$*"
+		push @code, "for $1 in ' '.join(sys.argv[1:]):";
+	} elsif ($line =~ /^for (.+) in \"?\$[\@\*]/) {
+		#handles for loops involving $[@*]
+		push @code, "for $1 in sys.argv[1:]:";
 	} elsif ($line =~ /^for (.+) in ([^\?\*]+)/) {
 		$loop_variable = $1;
 		@args = split / /, $2;
 
-		#appends each arg to loop in the format '<arg>' or <arg>
+		#appends each arg to loop in the format <arg> or '<arg>'
 		foreach $arg (@args) {
-			if ($arg !~ /[0-9]+/) {
-				$loop_args .= "'$arg', "; #formats numeric values
+			if ($arg =~ /[0-9]+/) {
+				$loop_args .= "$arg, "; #formats numeric values
 			} else {
-				$loop_args .= "$arg, "; #formats words
+				$loop_args .= "'$arg', "; #formats words
 			}
 		}
 
@@ -158,6 +170,16 @@ while ($line = <>) {
 		#handles if's, elif's and while's involving variable interpolation
 		my ($control, $first, $shell_operator, $second) = ($1, $2, $3, $4);
 		$operator = convert_operator($shell_operator);
+
+		#handles the case where either arg is $#
+		if ($first eq "#") {
+			$first = "len(sys.argv)";
+			import("sys");
+		} elsif ($second eq "#") {
+			$second = "len(sys.argv)";
+			import("sys");
+		}
+
 		push @code, "$control $first $operator $second:" if $shell_operator =~ /=/;
 		push @code, "$control int($first) $operator int($second):" if $shell_operator !~ /=/;
 	} elsif ($line =~ /^(if|elif|while) test (.+) -?(.+) (.+)/) {
@@ -174,7 +196,7 @@ while ($line = <>) {
 		push @code, ""; #transfers blank lines for correct alignment of comments
 	} else {
 		#converts all other lines into untranslated comments
-		push @code, "#$line [untranslated code]";
+		push @code, "#$line [UNTRANSLATED CODE]";
 	}
 
 	#stores end-of-line comments in array
