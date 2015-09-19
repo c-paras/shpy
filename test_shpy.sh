@@ -8,7 +8,7 @@ code=/tmp/python_code_$$.py
 abort_tests() {
 	echo
 	echo "Test: $1 FAILED"
-	echo "Further testing aborted"
+	echo "$0: testing aborted"
 	exit 1
 }
 
