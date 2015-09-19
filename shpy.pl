@@ -10,17 +10,21 @@ while ($line = <>) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
 	} elsif ($line =~ /^(\s*#.*)/) {
 		push @code, "$1"; #copies start-of-line comments into python code
-	} elsif ($line =~ /^\s*echo\s*$/) {
+	} elsif ($line =~ /^(\s*)echo -n ?(["']["'])?\s*$/) {
+		#converts echo -n without args to sys.stdout.write("")
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."sys.stdout.write(\"\")";
+		import("sys");
+	} elsif ($line =~ /^(\s*)echo ?(["']["'])?\s*$/) {
 		#converts echo without args to print without args
-		push @code, "print";
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."print";
 	} elsif ($line =~ /^(\s*)echo (.+)/) {
 		#converts all other calls to echo to calls to print
-		$leading_whitespace = $1;
-		$echo_to_print = $2;
+		my ($leading_whitespace, $echo_to_print) = ($1, $2);
 		convert_echo($leading_whitespace, $echo_to_print);
 	} elsif ($line =~ /^(\s*)ls -([a-z]+) (.+)/) {
-		$leading_whitespace = $1;
-		$options = $2;
+		my ($leading_whitespace, $options) = ($1, $2);
 
 		#determines whether the argument is "$[@*]"
 		if ($3 =~ /\$[@*]/) {
@@ -36,8 +40,7 @@ while ($line = <>) {
 		push @code, $leading_whitespace."subprocess.call(['ls', '-$2'])";
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)ls (.+)/) {
-		$leading_whitespace = $1;
-		$arg = $2;
+		my ($leading_whitespace, $arg) = ($1, $2);
 
 		#determines whether the argument is "$[@*]"
 		if ($arg =~ /\$[@*]/) {
@@ -48,14 +51,25 @@ while ($line = <>) {
 		}
 
 		import("subprocess");
+	} elsif ($line =~ /^(\s*)chmod ([0-7]{1,3}) (.*)/) {
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."subprocess.call(['chmod', '$2', '$3'])";
+		import("subprocess");
+	} elsif ($line =~ /^(\s*)(mv|cp) (.+) (.+)/) {
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."subprocess.call(['$2', '$3', '$4'])";
+		import("subprocess");
+	} elsif ($line =~ /^(\s*)rm (.+)/) {
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."subprocess.call(['rm', '$2'])";
+		import("subprocess");
 	} elsif ($line =~ /^(\s*)(ls|pwd|id|date)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."subprocess.call(['$2'])";
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.+)`/) {
 		#handles variable initialisation involving 'var=`expr .*`'
-		$leading_whitespace = $1;
-		$variable = $2;
+		my ($leading_whitespace, $variable) = ($1, $2);
 		@shell_exp = split / /, $3;
 
 		#converts each expression from shell style to python style
@@ -122,28 +136,41 @@ while ($line = <>) {
 		$loop_args =~ s/, $/:/; #converts last instance of ", " to :
 		push @code, "for $loop_variable in $loop_args";
 	} elsif ($line =~ /^for (.+) in (.+)/) {
-		$loop_variable = $1;
-		$file_type = $2;
+		my ($loop_variable, $file_type) = ($1, $2);
 		push @code, "for $loop_variable in sorted(glob.glob(\"$file_type\")):";
 		import("glob");
-	} elsif ($line =~ /^if test -r (.+)/) {
-		push @code, "if os.access('$1', os.R_OK):";
+	} elsif ($line =~ /^(if|elif|while) test -e (.+)/) {
+		push @code, "$1 os.path.exists('$2')";
 		import("os");
-	} elsif ($line =~ /^if test -d (.+)/) {
-		push @code, "if os.path.isdir('$1'):";
+	} elsif ($line =~ /^(if|elif|while) test -([rwx]) (.+)/) {
+		$rwx = $2;
+		$rwx =~ tr/rwx/RWX/;
+		push @code, "$1 os.access('$3', os.$rwx"."_OK):";
 		import("os");
-	} elsif ($line =~ /^if test (.+) (.+) (.+)/) {
-		$operator = convert_operator($2);
-		push @code, "if '$1' $operator '$3':"; #handles if's
-	} elsif ($line =~ /^elif test (.+) (.+) (.+)/) {
-		$operator = convert_operator($2);
-		push @code, "elif '$1' $operator '$3':"; #handles elif's
+	} elsif ($line =~ /^(if|elif|while) test -f (.+)/) {
+		push @code, "$1 os.path.isfile('$2')";
+		import("os");
+	} elsif ($line =~ /^(if|elif|while) test -d (.+)/) {
+		push @code, "$1 os.path.isdir('$2'):";
+		import("os");
+	} elsif ($line =~ /^(if|elif|while) test -h (.+)/) {
+		push @code, "$1 os.path.islink('$2')";
+		import("os");
+	} elsif ($line =~ /^(if|elif|while) test \$(.+) -?(.+) \$(.+)/) {
+		#handles if's, elif's and while's involving variable interpolation
+		my ($control, $first, $shell_operator, $second) = ($1, $2, $3, $4);
+		$operator = convert_operator($shell_operator);
+		push @code, "$control $first $operator $second:" if $shell_operator =~ /=/;
+		push @code, "$control int($first) $operator int($second):" if $shell_operator !~ /=/;
+	} elsif ($line =~ /^(if|elif|while) test (.+) -?(.+) (.+)/) {
+		#handles if's, elif's and while's not involving variable interpolation
+		my($control, $first, $shell_operator, $second) = ($1, $2, $3, $4);
+		$operator = convert_operator($shell_operator);
+		push @code, "$control '$first' $operator '$second':" if $shell_operator =~ /=/;
+		push @code, "$control int($first) $operator int($second):" if $shell_operator !~ /=/;
 	} elsif ($line =~ /^else$/) {
 		push @code, "else:"; #translates 'else' into 'else:'
-	} elsif ($line =~ /^while test \$(.+) -(.+) \$(.+)/) {
-		$operator = convert_operator($2);
-		push @code, "while int($1) $operator int($3):";
-	} elsif ($line =~ /^\s*do\s*$/ || $line =~ /^\s*done\s*$/ || $line =~ /^\s*then\s*$/ || $line =~ /^\s*fi\s*$/) {
+	} elsif ($line =~ /^\s*(do|done|then|fi)\s*$/) {
 		#prevents 'do', 'done', 'then' and 'fi' from being appended to code
 	} elsif ($line =~ /^\s*$/) {
 		push @code, $line; #copies blank and whitespace lines into python code
@@ -169,7 +196,7 @@ sub convert_operator {
 
 	if ($operator eq "eq") {
 		return "eq";
-	} elsif ($operator eq "=") {
+	} elsif ($operator eq "=" || $operator eq "==") {
 		return "==";
 	} elsif ($operator eq "ne") {
 		return "!=";

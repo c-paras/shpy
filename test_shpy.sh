@@ -13,12 +13,12 @@ abort_tests() {
 }
 
 #runs each test in the specified directory
-for file in ~/ass1/examples/$1/*.sh
+for file in ~/ass1/examples/[01234]/*.sh
 do
 	base=`basename "$file" .sh`
 	if [ "$base" == "pwd" -o "$base" == "single" ]
 	then
-		reference_code="examples/$1/$base.py"
+		reference_code="examples/0/$base.py"
 
 		#compares python code output by program with reference code
 		~/ass1/shpy.pl "$file" > $code
