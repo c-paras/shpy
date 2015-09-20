@@ -348,16 +348,17 @@ sub append_variables {
 
 #maps shell metavariables to their python analogues
 sub map_special_variable {
-	if ($words[$i] =~ /\$([0-9]+)/) {
+	my $var = $_[0];
+	if ($var =~ /[0-9]+/) {
 		import("sys");
-		return "sys.argv[$1]";
-	} elsif ($words[$i] =~ /\$[@*]/) {
+		return "sys.argv[$var]";
+	} elsif ($var =~ /[\@\*]/) {
 		import("sys");
 		return "sys.arg[1:]";
-	} elsif ($words[$i] =~ /\$#/) {
+	} elsif ($var =~ /\#/) {
 		import("sys");		
 		return "len(sys.argv) - 1";
-	} elsif ($words[$i] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
-		return $1;
+	} elsif ($var =~ /[a-zA-Z_][a-zA-Z0-9_]*/) {
+		return $var;
 	}
 }
