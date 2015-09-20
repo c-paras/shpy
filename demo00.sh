@@ -1,81 +1,39 @@
 #!/bin/sh
 
-test=t
+#obtains input from user
+if test $# -ne 2
+then
+	echo "Usage: $0 <height> <width>"
+	exit 1
+else
+	height=$1
+	width=$2
+fi
 
-echo 'this is a $test"'
-echo 'this is a $test""'
-echo 'this is a $test'''
-echo 'this is a "$test"'
-echo 'this is a "$test'
-echo 'this is a ""$test'
-echo '"this is a'' $test'
-echo 'this is a te''st'
-echo 'this is " a test'
+pattern="@"
+border="#"
+i=1
 
-echo -n 'this is a $test"'
-echo -n 'this is a $test""'
-echo -n 'this is a $test'''
-echo -n 'this is a "$test"'
-echo -n 'this is a "$test'
-echo -n 'this is a ""$test'
-echo -n '"this is a'' $test'
-echo -n 'this is a te''st'
-echo -n 'this is " a test'
+#prints out rectangle
+while test $i -le $height #prints row by row
+do
+	j=1
+	while test $j -le $width #prints column by column
+	do
 
-echo "this is a $test'"
-echo "this is a $test''"
-echo "this is a '$test"
-echo "this is a ''$test"
-echo "this is a '$test'"
-echo "'this is a $test"
-echo "this is a'' test"
-echo "this is a 'test"
-echo "this i'''s a test"
+		#prints border and internal pattern
+		if test $i -eq 1 -o $i -eq $height
+		then
+			echo -n $border
+		elif test $j -eq 1 -o $j -eq $width
+		then
+			echo -n $border
+		else
+			echo -n $pattern
+		fi
 
-echo -n "this is a $test'"
-echo -n "this is a $test''"
-echo -n "this is a '$test"
-echo -n "this is a ''$test"
-echo -n "this is a '$test'"
-echo -n "'this is a $test"
-echo -n "this is a'' test"
-echo -n "this is a 'test"
-echo -n "this i'''s a test"
-
-echo this is a $test
-echo "this is a $test"
-echo 'this is a $test'
-
-echo -n this is a $test
-echo -n "this is a $test"
-echo -n 'this is a $test'
-
-echo this is a$test
-echo this is a $test
-echo this is a '$test'
-
-echo -n this is a$test
-echo -n this is a $test
-echo -n this is a '$test'
-
-echo """"
-echo ''''
-echo "''"
-echo '""'
-
-echo -n """"
-echo -n ''''
-echo -n "''"
-echo -n '""'
-
-echo " "
-echo ' '
-echo ""
-echo ''
-echo
-
-echo -n " "
-echo -n ' '
-echo -n ""
-echo -n ''
-echo -n
+		j=`expr $j + 1`
+	done
+	echo
+	i=`expr $i + 1`
+done

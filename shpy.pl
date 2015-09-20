@@ -1,4 +1,5 @@
 #!/usr/bin/perl -w
+
 #Written by Constantinos Paraskevopoulos in September 2015
 #Converts simplistic and moderately complex Shell scripts into Python 2.7 scripts
 
@@ -287,7 +288,7 @@ sub convert_echo {
 
 	$interpolate_variables = 1 if $echo_to_print =~ /^\".*\"$/;
 	$interpolate_variables = 0 if $echo_to_print !~ /^\".*\"$/;
-	$echo_to_print =~ s/"//g; #removes all occurances of double quotes from string
+	$echo_to_print =~ s/"//g; #removes all occurrences of double quotes from string
 	my @words = split / /, $echo_to_print;
 	$string_to_print = "";
 	my $i = 0;
@@ -296,17 +297,8 @@ sub convert_echo {
 	while ($i <= $#words) {
 
 		#removes $ from variables and formats words as <var> or '<var>'
-		if ($words[$i] =~ /\$([0-9]+)/) {
-			append_to_string($words[$i], "sys.argv[$1]");
-			import("sys");
-		} elsif ($words[$i] =~ /\$[@*]/) {
-			append_to_string($words[$i], "sys.arg[1:]");
-			import("sys");
-		} elsif ($words[$i] =~ /\$#/) {
-			append_to_string($words[$i], "len(sys.argv) - 1");
-			import("sys");
-		} elsif ($words[$i] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
-			append_to_string($words[$i], $1);
+		if ($words[$i] =~ /\$/) {
+			append_variables($words[$i]);
 		} else {
 			$string_to_print .= "\"$words[$i]\", " if $words[$i];
 		}
@@ -321,14 +313,51 @@ sub convert_echo {
 }
 
 #appends variables and adjacent chars/single quotes to string to be printed
-sub append_to_string {
+sub append_variables {
 	my ($word, $match) = @_;
-	if ($word =~ /'\$$match'/ && $interpolate_variables == 0) {
-		$string_to_print .= "'\$$match', ";
+	my @words = split /\$/, $word;
+
+	#deals with the case of the variable being '$var1[$varn]*'
+	if ($word =~ /^'+(.+)'+$/ && $interpolate_variables == 0) {
+		$string_to_print .= "\"$1\", ";
 		return;	
 	}
-	$string_to_print .= "\"$1\" + " if $word =~ /^([^\$]+)\$/; #appends leading chars
-	$string_to_print .= "$match, " if $word !~ /'$/;
-	$string_to_print .= "$match + " if $word =~ /'$/;
-	$string_to_print .= "\"$1\", " if $word =~ /('+)$/; #appends trailing '+
+
+	$words[0] =~ s/'//g if $interpolate_variables == 0;
+	$string_to_print .= "\"$words[0]\" + " if $word =~ /^([^\$]+)\$/; #appends leading chars
+
+	#deals with variables of the form $var1[$varn]*
+	my $i = 1;
+	while ($i <= $#words) {
+		#filters out empty strings
+		$i++ if $words[$i] =~ /^$/;
+		last if $i > $#words;
+
+		$words[$i] =~ s/'//g; #deals with ' chars later
+		my $mapped_variable = map_special_variable($words[$i]);
+		$string_to_print .= "$mapped_variable + " if $i < $#words;
+		$string_to_print .= "$mapped_variable, " if $i == $#words && $word !~ /('+)$/;
+		$string_to_print .= "$mapped_variable + " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 1;
+		$string_to_print .= "$mapped_variable, " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 0;
+		$i++;
+	}
+
+	#appends trailing '+ whenever entire string is double quoted
+	$string_to_print .= "\"$1\", " if $word =~ /('+)$/ && $interpolate_variables == 1;
+}
+
+#maps shell metavariables to their python analogues
+sub map_special_variable {
+	if ($words[$i] =~ /\$([0-9]+)/) {
+		import("sys");
+		return "sys.argv[$1]";
+	} elsif ($words[$i] =~ /\$[@*]/) {
+		import("sys");
+		return "sys.arg[1:]";
+	} elsif ($words[$i] =~ /\$#/) {
+		import("sys");		
+		return "len(sys.argv) - 1";
+	} elsif ($words[$i] =~ /\$([a-zA-Z_][a-zA-Z0-9_]*)/) {
+		return $1;
+	}
 }

@@ -6,7 +6,8 @@ Date		Time		Activity	Description
 16/09/2015	21:30-11:30	coding		improved file matching and special variable compatibility
 17/09/2015	09:00-11:00	debugging	fixed issues with optional args to echo/ls and improved pattern matching
 19/09/2015	11:00-12:00	testing		improved testing suite for subsets 0 to 3
-19/09/2015	13:00-14:00	coding		implemented more external commands and genaralised file test and comparison test operators
-19/09/2015	15:00-16:00	coding		added code to handle in-line comments and improved $[#@*] variable compatability
+19/09/2015	13:00-14:00	coding		implemented more external commands and generalised file test and comparison test operators
+19/09/2015	15:00-16:00	coding		added code to handle in-line comments and improved $[#@*] variable compatibility
 19/09/2015	17:00-19:00	coding		implemented echo -n and if/for/while nesting
 19/09/2015	20:30-23:00	debugging	found bugs with in-line comments and echo -n
+20/09/2015	10:00-12:00	testing		added tests for variable concatenation and nesting
