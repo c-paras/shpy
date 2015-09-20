@@ -91,6 +91,7 @@ while ($line = <>) {
 		#handles variable initialisation involving 'var=`expr .*`'
 		my ($leading_whitespace, $variable) = ($1, $2);
 		@shell_exp = split / /, $3;
+		my $python_exp = "";
 
 		#converts each expression from shell style to python style
 		foreach $expression (@shell_exp) {
@@ -124,10 +125,16 @@ while ($line = <>) {
 		#handles variable initialisation involving 'var=$.+'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = $3";
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=([0-9]+)/) {
+		#handles variable initialisation involving 'var=num'
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."$2 = $3";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.+)/) {
 		#handles variable initialisation involving 'var=val'
-		$leading_whitespace = $1;
-		push @code, $leading_whitespace."$2 = '$3'";
+		my ($leading_whitespace, $name, $value) = ($1, $2, $3);
+		$value =~ s/\"(.*)\"/$1/; #removes leading/trailing "
+		$value =~ s/'(.*)'/$1/; #removes leading/trailing '
+		push @code, $leading_whitespace."$name = '$value'";
 	} elsif ($line =~ /^(\s*)cd (.+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."os.chdir('$2')";
@@ -188,28 +195,43 @@ while ($line = <>) {
 		my ($leading_whitespace, $control, $file) = ($1, $2, $3);
 		push @code, $leading_whitespace."$control os.path.islink('$file')";
 		import("os");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test \$(.+) -?(.+) \$(.+)/) {
-		#handles if's, elif's and while's involving variable interpolation
+	} elsif ($line =~ /^(\s*)(if|elif|while) test ([^ ]+) -?([^ ]+) ([^ ]+)/) {
+		#handles if's, elif's and while's
 		my ($leading_whitespace, $control, $first, $shell_operator, $second) = ($1, $2, $3, $4, $5);
 		$operator = convert_operator($shell_operator);
 
-		#handles the case where either arg is $#
-		if ($first eq "#") {
-			$first = "len(sys.argv)";
-			import("sys");
-		} elsif ($second eq "#") {
-			$second = "len(sys.argv)";
-			import("sys");
+		#maps variables to their python analogues
+		if ($first =~ /^\$/) {
+			$map_first = $first;
+			$map_first =~ s/^\$//;
+			$arg1 = map_special_variable($map_first);
+		} else {
+			$arg1 = $first;
 		}
 
-		push @code, $leading_whitespace."$control $first $operator $second:" if $shell_operator =~ /=/;
-		push @code, $leading_whitespace."$control int($first) $operator int($second):" if $shell_operator !~ /=/;
-	} elsif ($line =~ /^(\s*)(if|elif|while) test (.+) -?(.+) (.+)/) {
-		#handles if's, elif's and while's not involving variable interpolation
-		my ($leading_whitespace, $control, $first, $shell_operator, $second) = ($1, $2, $3, $4, $5);
-		$operator = convert_operator($shell_operator);
-		push @code, "$control '$first' $operator '$second':" if $shell_operator =~ /=/;
-		push @code, "$control int($first) $operator int($second):" if $shell_operator !~ /=/;
+		#maps variables to their python analogues
+		if ($second =~ /^\$/) {
+			$map_second = $second;
+			$map_second =~ s/^\$//;
+			$arg2 = map_special_variable($map_second);
+		} else {
+			$arg2 = $second;
+		}
+
+		#appends numeric comparisons
+		push @code, $leading_whitespace."$control int($arg1) $operator int($arg2):" if $shell_operator !~ /=/;
+
+		#appends line depedning on whether first and/or second is a variable
+		if ($first =~ /^\$/ && $second =~ /^\$/ && $shell_operator =~ /=/) {
+			push @code, $leading_whitespace."$control $arg1 $operator $arg2:";
+		} elsif ($first !~ /^\$/ && $second !~ /^\$/ && $shell_operator =~ /=/) {
+			push @code, $leading_whitespace."$control '$arg1' $operator '$arg2':";
+		} elsif ($first =~ /^\$/ && $second !~ /^\$/ && $shell_operator =~ /=/) {
+			push @code, $leading_whitespace."$control $arg1 $operator '$arg2':";
+		} elsif ($first !~ /^\$/ && $second =~ /^\$/ && $shell_operator =~ /=/) {
+			push @code, $leading_whitespace."$control '$arg1' $operator $arg2:";
+		}
+
 	} elsif ($line =~ /^(\s*)else$/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."else:"; #translates 'else' into 'else:'
@@ -222,9 +244,9 @@ while ($line = <>) {
 		push @code, "#$line [UNTRANSLATED CODE]";
 	}
 
-	#stores end-of-line comments in a hash
-	if ($line =~ /(\s*#.*)$/ && $line !~ /^\s*#.*$/) {
-		$comments{$code[$#code]} = $1; #aligns comment with current line in code
+	#stores end-of-line comments in a hash aligned with current line of code
+	if ($line =~ /(\s+#.*)$/ && $line !~ /^\s*#.*$/) { #avoids re-matching start-of-line comments
+		$comments{$code[$#code]} = $1;
 	}
 
 }
@@ -253,7 +275,7 @@ sub convert_operator {
 	my $operator = $_[0];
 
 	if ($operator eq "eq") {
-		return "eq";
+		return "==";
 	} elsif ($operator eq "=" || $operator eq "==") {
 		return "==";
 	} elsif ($operator eq "ne") {
@@ -349,16 +371,17 @@ sub append_variables {
 #maps shell metavariables to their python analogues
 sub map_special_variable {
 	my $var = $_[0];
-	if ($var =~ /[0-9]+/) {
+	if ($var =~ /^[0-9]+$/) {
 		import("sys");
 		return "sys.argv[$var]";
-	} elsif ($var =~ /[\@\*]/) {
+	} elsif ($var =~ /^[\@\*]$/) {
 		import("sys");
 		return "sys.arg[1:]";
-	} elsif ($var =~ /\#/) {
+	} elsif ($var =~ /^\#$/) {
 		import("sys");		
 		return "len(sys.argv) - 1";
-	} elsif ($var =~ /[a-zA-Z_][a-zA-Z0-9_]*/) {
+	} else {
+		#handles $var =~ /[a-zA-Z_][a-zA-Z0-9_]*/
 		return $var;
 	}
 }

@@ -11,7 +11,7 @@ else
 fi
 
 pattern="@"
-border="#"
+border='#'
 i=1
 
 #prints out rectangle
