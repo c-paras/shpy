@@ -224,14 +224,18 @@ while ($line = <>) {
 				$python_expression .= map_file_test($terms[$i], $terms[++$i]);
 			} elsif ($terms[$i] =~ /^\$/) {
 				#maps special variables to their python analogues
-				if ($terms[$i - 1] =~ /=/ || $terms[$i + 1] =~ /=/) {
+				if ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
+					$python_expression .= map_option_arg($terms[$i]);
+				} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
 					$python_expression .= map_option_arg($terms[$i]);
 				} else {
 					$python_expression .= "int(";
 					$python_expression .= map_option_arg($terms[$i]);
 					$python_expression .= ")";
 				}
-			} elsif ($terms[$i - 1] =~ /=/ || $terms[$i + 1] =~ /=/) {
+			} elsif ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
+				$python_expression .= "'$terms[$i]'"; #maps strings
+			} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
 				$python_expression .= "'$terms[$i]'"; #maps strings
 			} else {
 				$python_expression .= "int($terms[$i])" #maps remaining terms as integers	
