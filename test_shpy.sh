@@ -3,6 +3,8 @@
 tmp1=/tmp/shell_output_$$.txt
 tmp2=/tmp/python_output_$$.txt
 code=/tmp/python_code_$$.py
+temp=/tmp/temp_code_$$.py
+ref=/tmp/reference_code_$$.py
 
 #aborts if current test failed
 abort_tests() {
@@ -22,7 +24,9 @@ do
 
 		#compares python code output by program with reference code
 		~/ass1/shpy.pl "$file" > $code
-		diff $code $reference_code && echo "Test: $base SUCCEEDED" && continue
+		cat $code | egrep -v '^#' | cat > $temp
+		cat $reference_code | egrep -v '^#' | cat > $ref
+		diff -B $temp $ref && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	elif [ "$base" == "for_gcc" ]
 	then
@@ -79,4 +83,4 @@ done
 
 echo
 echo "ALL TESTS SUCCEEDED"
-rm $tmp1 $tmp2 $code
+rm $tmp1 $tmp2 $code $temp $ref

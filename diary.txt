@@ -10,5 +10,6 @@ Date		Time		Activity	Description
 19/09/2015	15:00-16:00	coding		added code to handle in-line comments and improved $[#@*] variable compatibility
 19/09/2015	17:00-19:00	coding		implemented echo -n and if/for/while nesting
 19/09/2015	20:30-23:00	debugging	found bugs with in-line comments and echo -n
-20/09/2015	10:00-12:00	testing		added tests for variable concatenation and nesting
-20/09/2015	14:00-		debugging	fixed issues with end-of-line comments, variable initialisation and if/elif/while
+20/09/2015	09:30-12:00	testing		added tests for variable concatenation and nesting
+20/09/2015	14:00-16:00	debugging	fixed issues with end-of-line comments, variable initialisation, if/elif/while and system calls
+20/09/2015	18:00-		coding		removed simplifying assumptions involving common unix commands and started subset 4
