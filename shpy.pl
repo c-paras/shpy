@@ -37,7 +37,7 @@ while ($line = <>) {
 		#converts all other calls to echo to calls to print
 		my ($leading_whitespace, $echo_to_print) = ($1, $2);
 		convert_echo($leading_whitespace, $echo_to_print, 1);
-	} elsif ($line =~ /^(\s*)(chmod|cp|mv)( -.+)* ([^ ]+) ([^ ]+)/) {
+	} elsif ($line =~ /^(\s*)(chmod|cp|mv)( -.+)* (.+) (.+)/) {
 		my ($leading_whitespace, $cmd, $options, $arg1, $arg2) = ($1, $2, $3, $4, $5);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
@@ -50,17 +50,17 @@ while ($line = <>) {
 		if ($arg2 =~ /\$[\@\*]/) {
 			$system_call = "['$cmd', '$options', $first_arg] + $second_arg" if $options;
 			$system_call = "['$cmd', $first_arg] + $second_arg" if !$options;
-		} elsif ($arg2 =~ /\$.+/) {
+} else{#		} elsif ($arg2 =~ /\$.+/) {
 			$system_call = "['$cmd', '$options', $first_arg, $second_arg]" if $options;
 			$system_call = "['$cmd', $first_arg, $second_arg]" if !$options;
-		} else {
-			$system_call = "['$cmd', '$options', '$first_arg', '$second_arg']" if $options;
-			$system_call = "['$cmd', '$first_arg', '$second_arg']" if !$options;
+#		} else {
+#			$system_call = "['$cmd', '$options', '$first_arg', '$second_arg']" if $options;
+#			$system_call = "['$cmd', '$first_arg', '$second_arg']" if !$options;
 		}
 
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(ls|rm)( -.+)* ([^ ]+)/) {
+	} elsif ($line =~ /^(\s*)(ls|rm)( -.+)* (.+)/) {
 		my ($leading_whitespace, $cmd, $options, $args) = ($1, $2, $3, $4);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
@@ -72,22 +72,22 @@ while ($line = <>) {
 		if ($args =~ /\$[\@\*]/) {
 			$system_call = "['$cmd', '$options'] + $arg" if $options;
 			$system_call = "['$cmd'] + $arg" if !$options;
-		} elsif ($args =~ /\$.+/) {
+	}else{#	} elsif ($args =~ /\$.+/) {
 			$system_call = "['$cmd', '$options', $arg]" if $options;
 			$system_call = "['$cmd', $arg]" if !$options;
-		} else {
-			$system_call = "['$cmd', '$options', '$arg']" if $options;
-			$system_call = "['$cmd', '$arg']" if !$options;
+#		} else {
+#			$system_call = "['$cmd', '$options', '$arg']" if $options;
+#			$system_call = "['$cmd', '$arg']" if !$options;
 		}
 
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(ls|pwd|id|date)( -.+)+/) {
+	} elsif ($line =~ /^(\s*)(ls|pwd|id|date)( -.+)*/) {
 		my ($leading_whitespace, $cmd, $options) = ($1, $2, $3);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
-		$system_call = "['$cmd', '$options'] if $options";
-		$system_call = "['$cmd'] if !$options";
+		$system_call = "['$cmd', '$options']" if $options;
+		$system_call = "['$cmd']" if !$options;
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.+)`/) {
@@ -127,7 +127,7 @@ while ($line = <>) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.argv[$3]";
 		import("sys");
-	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$(.+)/) {
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$([^ ]+)/) {
 		#handles variable initialisation involving 'var=$.+'
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = $3";
@@ -141,7 +141,7 @@ while ($line = <>) {
 		$value =~ s/\"(.*)\"/$1/; #removes leading/trailing "
 		$value =~ s/'(.*)'/$1/; #removes leading/trailing '
 		push @code, $leading_whitespace."$name = '$value'";
-	} elsif ($line =~ /^(\s*)cd (.+)/) {
+	} elsif ($line =~ /^(\s*)cd ([^ ]+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."os.chdir('$2')";
 		import("os");
@@ -149,19 +149,19 @@ while ($line = <>) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.exit($2)";
 		import("sys");
-	} elsif ($line =~ /^(\s*)read (.+)/) {
+	} elsif ($line =~ /^(\s*)read ([^ ]+)/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.stdin.readline().rstrip()";
 		import("sys");
-	} elsif ($line =~ /^(\s*)for (.+) in \"\$\*\"/) {
+	} elsif ($line =~ /^(\s*)for ([^ ]+) in \"\$\*\"/) {
 		#handles for loops involving "$*"
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."for $2 in ' '.join(sys.argv[1:]):";
-	} elsif ($line =~ /^(\s*)for (.+) in \"?\$[\@\*]/) {
+	} elsif ($line =~ /^(\s*)for ([^ ]+) in \"?\$[\@\*]/) {
 		$leading_whitespace = $1;
 		#handles for loops involving $[@*]
 		push @code, $leading_whitespace."for $2 in sys.argv[1:]:";
-	} elsif ($line =~ /^(\s*)for (.+) in ([^\?\*]+)/) {
+	} elsif ($line =~ /^(\s*)for ([^ ]+) in ([^\?\*]+)/) {
 		my ($leading_whitespace, $loop_variable) = ($1, $2);
 		@args = split / /, $3;
 
@@ -176,37 +176,16 @@ while ($line = <>) {
 
 		$loop_args =~ s/, $/:/; #converts last instance of ", " to :
 		push @code, $leading_whitespace."for $loop_variable in $loop_args";
-	} elsif ($line =~ /^(\s*)for (.+) in (.+)/) {
+	} elsif ($line =~ /^(\s*)for ([^ ]+) in (.+)/) {
 		my ($leading_whitespace, $loop_variable, $file_type) = ($1, $2, $3);
 		push @code, $leading_whitespace."for $loop_variable in sorted(glob.glob(\"$file_type\")):";
 		import("glob");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test -e (.+)/) {
-		my ($leading_whitespace, $control, $file) = ($1, $2, $3);
-		push @code, $leading_whitespace."$2 os.path.exists('$file'):";
-		import("os");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test -([rwx]) (.+)/) {
-		my ($leading_whitespace, $control, $rwx, $file) = ($1, $2, $3, $4);
-		$rwx =~ tr/rwx/RWX/;
-		push @code, $leading_whitespace."$control os.access('$file', os.$rwx"."_OK):";
-		import("os");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test -f (.+)/) {
-		my ($leading_whitespace, $control, $file) = ($1, $2, $3);
-		push @code, $leading_whitespace."$control os.path.isfile('$file'):";
-		import("os");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test -d (.+)/) {
-		my ($leading_whitespace, $control, $file) = ($1, $2, $3);
-		push @code, $leading_whitespace."$control os.path.isdir('$file'):";
-		import("os");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test -h (.+)/) {
-		my ($leading_whitespace, $control, $file) = ($1, $2, $3);
-		push @code, $leading_whitespace."$control os.path.islink('$file'):";
-		import("os");
 	} elsif ($line =~ /^(\s*)(if|elif|while) (true|false)/) {
 		#handles if/elif/while with negated true/false
 		my ($leading_whitespace, $control, $cmd) = ($1, $2, $3);
 		push @code, $leading_whitespace."$control not subprocess.call(['$cmd']):";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(if|elif|while) (diff|fgrep)( -.+)* ([^ ]+) ([^ ]+)/) {
+	} elsif ($line =~ /^(\s*)(if|elif|while) (diff|fgrep)( -.+)* (.+) (.+)/) {
 		#handles if/elif/while with negated diff/fgrep
 		my ($leading_whitespace, $control, $cmd, $options, $file1, $file2) = ($1, $2, $3, $4, $5, $6);
 		$file1 = map_option_arg($file1);
@@ -217,43 +196,53 @@ while ($line = <>) {
 		$system_call = "['$cmd', $file1, $file2]" if !$options;
 		push @code, $leading_whitespace."$control not subprocess.call($system_call):";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(if|elif|while) test ([^ ]+) -?([^ ]+) ([^ ]+)/) {
-		#handles all other if/elif/while
-		my ($leading_whitespace, $control, $first, $shell_operator, $second) = ($1, $2, $3, $4, $5);
-		$operator = convert_operator($shell_operator);
+	} elsif ($line =~ /^(\s*)(if|elif|while) test (.+)/) {
+		#handles all other if/elif/while statements
+		my ($leading_whitespace, $control, $expression) = ($1, $2, $3);
+		my @terms = split / /, $expression;
+		my $python_expression = "";
+		my $i = 0;
 
-		#maps variables to their python analogues
-		if ($first =~ /^\$/) {
-			$map_first = $first;
-			$map_first =~ s/^\$//;
-			$arg1 = map_special_variable($map_first);
-		} else {
-			$arg1 = $first;
+		#maps each term of the shell expression to its analogue in python
+		while ($i <= $#terms) {
+			#skips empty terms
+			$i++ if $terms[$i] eq "";
+			last if $i > $#terms;
+
+			if ($terms[$i] eq "-a") {
+				$python_expression .= "and";
+			} elsif ($terms[$i] eq "-o") {
+				$python_expression .= "or";
+			} elsif ($terms[$i] =~ /^-(eq|ne|lt|le|gt|ge)$/) {
+				#matches numeric comparisons
+				$python_expression .= convert_operator($1);
+			} elsif ($terms[$i] eq "=" || $terms[$i] eq "==") {
+				#matches string comparisons
+				$python_expression .= convert_operator($terms[$i]);
+			} elsif ($terms[$i] =~ /^-[erwxfdh]$/) {
+				#matches file test operators
+				$python_expression .= map_file_test($terms[$i], $terms[++$i]);
+			} elsif ($terms[$i] =~ /^\$/) {
+				#maps special variables to their python analogues
+				if ($terms[$i - 1] =~ /=/ || $terms[$i + 1] =~ /=/) {
+					$python_expression .= map_option_arg($terms[$i]);
+				} else {
+					$python_expression .= "int(";
+					$python_expression .= map_option_arg($terms[$i]);
+					$python_expression .= ")";
+				}
+			} elsif ($terms[$i - 1] =~ /=/ || $terms[$i + 1] =~ /=/) {
+				$python_expression .= "'$terms[$i]'"; #maps strings
+			} else {
+				$python_expression .= "int($terms[$i])" #maps remaining terms as integers	
+			}
+
+			$python_expression .= " ";
+			$i++;
 		}
 
-		#maps variables to their python analogues
-		if ($second =~ /^\$/) {
-			$map_second = $second;
-			$map_second =~ s/^\$//;
-			$arg2 = map_special_variable($map_second);
-		} else {
-			$arg2 = $second;
-		}
-
-		#appends numeric comparisons
-		push @code, $leading_whitespace."$control int($arg1) $operator int($arg2):" if $shell_operator !~ /=/;
-
-		#appends line depedning on whether first and/or second is a variable
-		if ($first =~ /^\$/ && $second =~ /^\$/ && $shell_operator =~ /=/) {
-			push @code, $leading_whitespace."$control $arg1 $operator $arg2:";
-		} elsif ($first !~ /^\$/ && $second !~ /^\$/ && $shell_operator =~ /=/) {
-			push @code, $leading_whitespace."$control '$arg1' $operator '$arg2':";
-		} elsif ($first =~ /^\$/ && $second !~ /^\$/ && $shell_operator =~ /=/) {
-			push @code, $leading_whitespace."$control $arg1 $operator '$arg2':";
-		} elsif ($first !~ /^\$/ && $second =~ /^\$/ && $shell_operator =~ /=/) {
-			push @code, $leading_whitespace."$control '$arg1' $operator $arg2:";
-		}
-
+		$python_expression =~ s/ $//; #removes trailing space
+		push @code, $leading_whitespace."$control $python_expression:";
 	} elsif ($line =~ /^(\s*)else/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."else:"; #translates 'else' into 'else:'
@@ -374,24 +363,19 @@ sub append_variables {
 
 	#deals with variables of the form $var1[$varn]*
 	my $i = 1;
-	while ($i < $#words) {
+	while ($i <= $#words) {
 		#filters out empty strings
 		$i++ if $words[$i] =~ /^$/;
 		last if $i > $#words;
-
-		$words[$i] =~ s/'//g; #removes ' chars
+		$words[$i] =~ s/'//g; #deals with ' chars later
 		my $mapped_variable = map_special_variable($words[$i]);
-		$string_to_print .= "$mapped_variable + ";
+		$string_to_print .= "$mapped_variable + " if $i < $#words;
+		$string_to_print .= "$mapped_variable, " if $i == $#words && $word !~ /('+)$/;
+		$string_to_print .= "$mapped_variable + " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 1;
+		$string_to_print .= "$mapped_variable, " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 0;
 		$i++;
 	}
 
-	$words[$i] =~ s/'//g; #removes ' chars
-	my $mapped_variable = map_special_variable($words[$i]);
-	$string_to_print .= "$mapped_variable, " if $word !~ /('+)$/;
-
-	#re-appends ' chars
-	$string_to_print .= "$mapped_variable + " if $word =~ /('+)$/ && $interpolate_variables == 1;
-	$string_to_print .= "$mapped_variable, " if $word =~ /('+)$/ && $interpolate_variables == 0;
 	
 	#appends trailing '+ whenever entire string is double quoted
 	$string_to_print .= "\"$1\", " if $word =~ /('+)$/ && $interpolate_variables == 1;
@@ -426,16 +410,45 @@ sub map_special_variable {
 sub map_option_arg {
 	my $input = $_[0];
 	if ($input =~ /^\"\$(.+)\"/) {
+		#interpolates variables with double quotes
 		$interpolate_variables = 1;
 		$input = map_special_variable($1);
 	} elsif ($input =~ /^('\$.+')$/) {
+		#returns variables within single quotes
 		$input =~ $1;
 	} elsif ($input =~ /^\$/) {
+		#interpolates other variables
 		$input =~ s/^\$//;
 		$interpolate_variables = 0;
 		$input = map_special_variable($input);
+	} elsif ($input =~ /^'.+'$/) {
+		return $input; #returns original string
 	} else {
-		$input = $input;
+		$input = "'$input'"; #returns quoted string
 	}
 	return $input;
+}
+
+#maps a shell file test to its python analogue
+sub map_file_test {
+	my ($test_operator, $file) = @_;
+	import("os");
+
+	$file = map_option_arg($file);
+
+	#determines python command based on test operator
+	if ($test_operator eq "-e") {
+		return "os.path.exists($file)";
+	} elsif ($test_operator =~ /([rwx])/) {
+		my $rwx = $1;
+		$rwx =~ tr/rwx/RWX/;
+		return "os.access($file, os.$rwx"."_OK)";
+	} elsif ($test_operator eq "-f") {
+		return "os.path.isfile($file)"
+	} elsif ($test_operator eq "-d") {
+		return "os.path.isdir($file)";
+	} elsif ($test_operator eq "-h") {
+		return "os.path.islink($file)";
+	}
+
 }
