@@ -63,7 +63,7 @@ do
 		python -u $code ~/ass1/shpy.pl > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
-	elif [ "$base" == "sequence0" ]
+	elif [ "$base" == "sequence0" -o "$base" == "sequence1" ]
 	then
 		#compares output of shell and python code for sequence 3..15
 		sh "$file" 3 15 > $tmp1

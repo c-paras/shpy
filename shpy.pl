@@ -11,29 +11,37 @@ while ($line = <>) {
 	$line =~ s/\s*$//;
 	$line =~ s/^\s*//;
 	$line = indent_code($line);
+	$comment = "";
+
+	#saves comment in variable and removes it from line to simplify pattern matching
+	if ($line =~ /(\s+#.*)$/ && $line !~ /^\s*#.*$/) {
+		#second regex avoids matching start-of line comments
+		$comment = $1;
+		$line =~ s/$1$//;
+	}
 
 	if ($line =~ /^#!/ && $. == 1) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
 	} elsif ($line =~ /^(\s*#.*)/) {
 		push @code, "$1"; #copies start-of-line comments into python code
-	} elsif ($line =~ /^(\s*)echo -n ["'](\s*)["']\s*(#.*)?$/) {
+	} elsif ($line =~ /^(\s*)echo -n ["'](\s*)["']$/) {
 		#converts echo -n with blank string to sys.stdout.write("\s*")
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.stdout.write(\"$2\")";
 		import("sys");
-	} elsif ($line =~ /^(\s*)echo -n\s*(#.*)?$/) {
+	} elsif ($line =~ /^(\s*)echo -n$/) {
 		#converts echo -n without args to sys.stdout.write("")
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.stdout.write(\"\")";
 		import("sys");
-	} elsif ($line =~ /^(\s*)echo\s*(#.*)?$/) {
-		#converts echo without args to print without args
-		$leading_whitespace = $1;
-		push @code, $leading_whitespace."print";
-	} elsif ($line =~ /^(\s*)echo ["'](\s*)["']\s*(#.*)?$/) {
+	} elsif ($line =~ /^(\s*)echo ["'](\s*)["']$/) {
 		#converts echo with blank string to print with blank string
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."print \"$2\"";
+	} elsif ($line =~ /^(\s*)echo$/) {
+		#converts echo without args to print without args
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."print";
 	} elsif ($line =~ /^(\s*)echo -n (.+)/) {
 		#converts all other calls to echo -n to calls to print
 		my ($leading_whitespace, $echo_to_print) = ($1, $2);
@@ -65,7 +73,7 @@ while ($line = <>) {
 
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(ls|rm)( -.+)* (.+)/) {
+	} elsif ($line =~ /^(\s*)(ls|rm|touch|sleep|mkdir|rmdir|unzip|gzip)( -.+)* (.+)/) {
 		my ($leading_whitespace, $cmd, $options, $args) = ($1, $2, $3, $4);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
@@ -97,31 +105,14 @@ while ($line = <>) {
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.+)`/) {
 		#handles variable initialisation involving 'var=`expr .+`'
-		my ($leading_whitespace, $variable) = ($1, $2);
-		@shell_exp = split / /, $3;
-		my $python_exp = "";
-
-		#converts each expression from shell style to python style
-		foreach $expression (@shell_exp) {
-			$expression =~ s/\\(.+)/$1/; #converts operators escaped with \
-			$expression =~ s/\"(.+)\"/$1/; #converts operators escaped with ""
-			$expression =~ s/'(.+)'/$1/; #converts operators escaped with ''
-			if ($expression =~ /\$([0-9]+)/) {
-				$python_exp .= "sys.argv[$1] "; #handles special vars
-				import("sys");
-			} elsif ($expression =~ /\$#/) {
-				$python_exp .= "(len(sys.argv) - 1) "; #handles '$#' var
-				import("sys");
-			} elsif ($expression =~ /\$(.+)/) {
-				$python_exp .= "int($1) "; #handles all other vars
-			} else {
-				#copies arithmetic operators and numeric values
-				$python_exp .= "$expression ";
-			}
-		}
-
-		$python_exp =~ s/ $//; #removes trailing ' ' char
-		push @code, $leading_whitespace."$variable = $python_exp";
+		my ($leading_whitespace, $variable, $shell_expression) = ($1, $2, $3);
+		$python_expression = convert_variable_initialisation($shell_expression);
+		push @code, $leading_whitespace."$variable = $python_expression";
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$\(\((.+)\)\)/) {
+		#handles variable initialisation involving 'var=$((.+))'
+		my ($leading_whitespace, $variable, $shell_expression) = ($1, $2, $3);
+		$python_expression = convert_variable_initialisation($shell_expression);
+		push @code, $leading_whitespace."$variable = $python_expression";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$#/) {
 		#handles variable initialisation involving 'var=$#'
 		$leading_whitespace = $1;
@@ -185,6 +176,10 @@ while ($line = <>) {
 		my ($leading_whitespace, $loop_variable, $file_type) = ($1, $2, $3);
 		push @code, $leading_whitespace."for $loop_variable in sorted(glob.glob(\"$file_type\")):";
 		import("glob");
+	} elsif ($line =~ /^(\s*)while read ([^ ])/) {
+		my ($leading_whitespace, $variable) = ($1, $2);
+		push @code, $leading_whitespace."for $variable in sys.stdin:";
+		import("sys");
 	} elsif ($line =~ /^(\s*)(if|elif|while) (true|false)/) {
 		#handles if/elif/while with negated true/false
 		my ($leading_whitespace, $control, $cmd) = ($1, $2, $3);
@@ -202,11 +197,21 @@ while ($line = <>) {
 		push @code, $leading_whitespace."$control not subprocess.call($system_call):";
 		import("subprocess");
 	} elsif ($line =~ /^(\s*)(if|elif|while) test (.+)/) {
-		#handles all other if/elif/while statements
+		#handles all other if/elif/while statements with test command
 		my ($leading_whitespace, $control, $expression) = ($1, $2, $3);
 		$python_expression = map_if_while($expression);
 		$python_expression =~ s/ $//; #removes trailing space
 		push @code, $leading_whitespace."$control $python_expression:";
+	} elsif ($line =~ /^(\s*)(if|elif|while) \[ (.+) \]/) {
+		#handles all other if/elif/while statements with [ ] notation
+		my ($leading_whitespace, $control, $expression) = ($1, $2, $3);
+		$python_expression = map_if_while($expression);
+		$python_expression =~ s/ $//; #removes trailing space
+		push @code, $leading_whitespace."$control $python_expression:";
+	} elsif ($line =~ /^(\s*):/) {
+		#matches empty statements
+		$leading_whitespace = $1;
+		push @code, $leading_whitespace."pass";
 	} elsif ($line =~ /^(\s*)else/) {
 		$leading_whitespace = $1;
 		push @code, $leading_whitespace."else:"; #translates 'else' into 'else:'
@@ -220,9 +225,8 @@ while ($line = <>) {
 	}
 
 	#stores end-of-line comments in a hash aligned with current line of code
-	if ($line =~ /(\s+#.*)$/ && $line !~ /^\s*#.*$/) {
-		#second regex avoids re-matching start-of line comments
-		$comments{$code[$#code]} = $1;
+	if ($comment ne "") {
+		$comments{$code[$#code]} = $comment;
 	}
 
 }
@@ -285,6 +289,34 @@ sub convert_operator {
 		return ">=";
 	}
 
+}
+
+#converts variable initialisations involving var=`expr .+` and var=$((.+))
+sub convert_variable_initialisation {
+	my @shell_exp = split / /, $_[0];
+	my $python_exp = "";
+
+	#converts each expression from shell style to python style
+	foreach $expression (@shell_exp) {
+		$expression =~ s/\\(.+)/$1/; #converts operators escaped with \
+		$expression =~ s/\"(.+)\"/$1/; #converts operators escaped with ""
+		$expression =~ s/'(.+)'/$1/; #converts operators escaped with ''
+		if ($expression =~ /\$([0-9]+)/) {
+			$python_exp .= "sys.argv[$1] "; #handles special vars
+			import("sys");
+		} elsif ($expression =~ /\$#/) {
+			$python_exp .= "(len(sys.argv) - 1) "; #handles '$#' var
+			import("sys");
+		} elsif ($expression =~ /\$(.+)/) {
+			$python_exp .= "int($1) "; #handles all other vars
+		} else {
+			#copies arithmetic operators and numeric values
+			$python_exp .= "$expression ";
+		}
+	}
+
+	$python_exp =~ s/ $//; #removes trailing ' ' char
+	return $python_exp;
 }
 
 #converts calls to echo to calls to print
