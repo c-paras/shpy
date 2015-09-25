@@ -1,11 +1,16 @@
 #!/usr/bin/perl -w
-
 #Written by Constantinos Paraskevopoulos in September 2015
 #Converts simplistic and moderately complex Shell scripts into Python 2.7 scripts
 
+$tab_count = "";
+
 #reads input shell source code from file(s) or from stdin
 while ($line = <>) {
+	#reformats current line
 	chomp $line;
+	$line =~ s/\s*$//;
+	$line =~ s/^\s*//;
+	$line = indent_code($line);
 
 	if ($line =~ /^#!/ && $. == 1) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
@@ -50,7 +55,7 @@ while ($line = <>) {
 		if ($arg2 =~ /\$[\@\*]/) {
 			$system_call = "['$cmd', '$options', $first_arg] + $second_arg" if $options;
 			$system_call = "['$cmd', $first_arg] + $second_arg" if !$options;
-} else{#		} elsif ($arg2 =~ /\$.+/) {
+} else {#		} elsif ($arg2 =~ /\$.+/) {
 			$system_call = "['$cmd', '$options', $first_arg, $second_arg]" if $options;
 			$system_call = "['$cmd', $first_arg, $second_arg]" if !$options;
 #		} else {
@@ -72,7 +77,7 @@ while ($line = <>) {
 		if ($args =~ /\$[\@\*]/) {
 			$system_call = "['$cmd', '$options'] + $arg" if $options;
 			$system_call = "['$cmd'] + $arg" if !$options;
-	}else{#	} elsif ($args =~ /\$.+/) {
+} else {#		} elsif ($args =~ /\$.+/) {
 			$system_call = "['$cmd', '$options', $arg]" if $options;
 			$system_call = "['$cmd', $arg]" if !$options;
 #		} else {
@@ -199,52 +204,7 @@ while ($line = <>) {
 	} elsif ($line =~ /^(\s*)(if|elif|while) test (.+)/) {
 		#handles all other if/elif/while statements
 		my ($leading_whitespace, $control, $expression) = ($1, $2, $3);
-		my @terms = split / /, $expression;
-		my $python_expression = "";
-		my $i = 0;
-
-		#maps each term of the shell expression to its analogue in python
-		while ($i <= $#terms) {
-			#skips empty terms
-			$i++ if $terms[$i] eq "";
-			last if $i > $#terms;
-
-			if ($terms[$i] eq "-a") {
-				$python_expression .= "and";
-			} elsif ($terms[$i] eq "-o") {
-				$python_expression .= "or";
-			} elsif ($terms[$i] =~ /^-(eq|ne|lt|le|gt|ge)$/) {
-				#matches numeric comparisons
-				$python_expression .= convert_operator($1);
-			} elsif ($terms[$i] eq "=" || $terms[$i] eq "==") {
-				#matches string comparisons
-				$python_expression .= convert_operator($terms[$i]);
-			} elsif ($terms[$i] =~ /^-[erwxfdh]$/) {
-				#matches file test operators
-				$python_expression .= map_file_test($terms[$i], $terms[++$i]);
-			} elsif ($terms[$i] =~ /^\$/) {
-				#maps special variables to their python analogues
-				if ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
-					$python_expression .= map_option_arg($terms[$i]);
-				} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
-					$python_expression .= map_option_arg($terms[$i]);
-				} else {
-					$python_expression .= "int(";
-					$python_expression .= map_option_arg($terms[$i]);
-					$python_expression .= ")";
-				}
-			} elsif ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
-				$python_expression .= "'$terms[$i]'"; #maps strings
-			} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
-				$python_expression .= "'$terms[$i]'"; #maps strings
-			} else {
-				$python_expression .= "int($terms[$i])" #maps remaining terms as integers	
-			}
-
-			$python_expression .= " ";
-			$i++;
-		}
-
+		$python_expression = map_if_while($expression);
 		$python_expression =~ s/ $//; #removes trailing space
 		push @code, $leading_whitespace."$control $python_expression:";
 	} elsif ($line =~ /^(\s*)else/) {
@@ -276,7 +236,7 @@ for ($i..$#code) {
 
 #prints rendered python code to stdout
 unshift @code, "#Converted by shpy.pl [".(scalar localtime)."]\n";
-unshift @code, "$interpreter\n" if $interpreter;
+unshift @code, "$interpreter" if $interpreter;
 foreach $line (@code) {
 	print "$line\n" if $line ne " ";
 }
@@ -285,6 +245,24 @@ foreach $line (@code) {
 sub import {
 	my $package = $_[0];
 	unshift @code, "import $package" if !grep(/^import $package$/, @code);
+}
+
+#re-indents a given line of code based on the previous tab count
+sub indent_code {
+	my $line = $_[0];
+	if ($line =~ /^(if|while|for)/) {
+		$line = "$tab_count".$line; #copies line with current tab count
+		$tab_count .= "\t"; #increments for next line/block
+	} elsif ($line =~ /^(elif|else)/) {
+		$tab_count =~ s/\t//; #decrements tab count temporarily
+		$line = "$tab_count".$line; #copies line with decremented tab count
+		$tab_count .= "\t"; #re-increments for next line/block
+	} elsif ($line =~ /^(fi|done)/) {
+		$tab_count =~ s/\t//; #decrements tab count at end of control structure
+	} else {
+		$line = "$tab_count".$line; #copies line with current tab count
+	}
+	return $line;
 }
 
 #converts numeric and non-numeric test operators to python style operators
@@ -455,4 +433,57 @@ sub map_file_test {
 		return "os.path.islink($file)";
 	}
 
+}
+
+#maps all if/elif and while statements to their python analogues
+sub map_if_while {
+	my $expression = $_[0];
+	my @terms = split / /, $expression;
+	my $python_expression = "";
+	my $i = 0;
+
+	#maps each term of the shell expression to its analogue in python
+	while ($i <= $#terms) {
+		#skips empty terms
+		$i++ if $terms[$i] eq "";
+		last if $i > $#terms;
+
+		if ($terms[$i] eq "-a") {
+			$python_expression .= "and";
+		} elsif ($terms[$i] eq "-o") {
+			$python_expression .= "or";
+		} elsif ($terms[$i] =~ /^-(eq|ne|lt|le|gt|ge)$/) {
+			#matches numeric comparisons
+			$python_expression .= convert_operator($1);
+		} elsif ($terms[$i] eq "=" || $terms[$i] eq "==") {
+			#matches string comparisons
+			$python_expression .= convert_operator($terms[$i]);
+		} elsif ($terms[$i] =~ /^-[erwxfdh]$/) {
+			#matches file test operators
+			$python_expression .= map_file_test($terms[$i], $terms[++$i]);
+		} elsif ($terms[$i] =~ /^\$/) {
+
+			#maps special variables to their python analogues
+			if ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
+				$python_expression .= map_option_arg($terms[$i]);
+			} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
+				$python_expression .= map_option_arg($terms[$i]);
+			} else {
+				$python_expression .= "int(";
+				$python_expression .= map_option_arg($terms[$i]);
+				$python_expression .= ")";
+			}
+
+		} elsif ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
+			$python_expression .= "'$terms[$i]'"; #maps strings
+		} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
+			$python_expression .= "'$terms[$i]'"; #maps strings
+		} else {
+			$python_expression .= "int($terms[$i])" #maps remaining terms as integers
+		}
+		$python_expression .= " ";
+		$i++;
+	}
+
+	return $python_expression;
 }
