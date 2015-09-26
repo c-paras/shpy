@@ -15,7 +15,7 @@ border='#'
 i=1
 
 #prints out rectangle
-while test $i -le $height #prints row by row
+while [ $i -le $height ] #prints row by row
 do
 	j=1
 	while test $j -le $width #prints column by column
@@ -25,7 +25,7 @@ do
 		if test $i -eq 1 -o $i -eq $height
 		then
 			echo -n $border
-		elif test $j -eq 1 -o $j -eq $width
+		elif [ $j -eq 1 -o $j -eq $width ]
 		then
 			echo -n $border
 		else
@@ -35,5 +35,5 @@ do
 		j=`expr $j + 1`
 	done
 	echo
-	i=`expr $i + 1`
+	i=$(expr $i + 1)
 done

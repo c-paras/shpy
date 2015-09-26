@@ -3,6 +3,8 @@
 #Converts simplistic and moderately complex Shell scripts into Python 2.7 scripts
 
 $tab_count = "";
+$commands = "ls|rm|touch|sleep|mkdir|rmdir|unzip|gzip";
+$filters = "cat|wc|head|tail|sort|sed|grep|egrep|uniq|cut|paste";
 
 #reads input shell source code from file(s) or from stdin
 while ($line = <>) {
@@ -20,27 +22,53 @@ while ($line = <>) {
 		$line =~ s/$1$//;
 	}
 
+	$line = parse_line($line);
+
+	#stores end-of-line comments in a hash aligned with current line of code
+	if ($comment ne "") {
+		$comments{$code[$#code]} = $comment;
+	}
+
+}
+
+#copies end-of-line comments into python source code
+$i = 0;
+for ($i..$#code) {
+	#appends comment to end of line
+	$code[$i] .= $comments{$code[$i]} if $comments{$code[$i]};
+	$i++;
+}
+
+#prints rendered python code to stdout
+unshift @code, "#Converted by shpy.pl [".(scalar localtime)."]\n";
+unshift @code, "$interpreter" if $interpreter;
+foreach $line (@code) {
+	print "$line\n" if $line ne " ";
+}
+
+#parses current line of shell script
+sub parse_line {
 	if ($line =~ /^#!/ && $. == 1) {
 		$interpreter = "#!/usr/bin/python2.7 -u";
 	} elsif ($line =~ /^(\s*#.*)/) {
 		push @code, "$1"; #copies start-of-line comments into python code
 	} elsif ($line =~ /^(\s*)echo -n ["'](\s*)["']$/) {
 		#converts echo -n with blank string to sys.stdout.write("\s*")
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.stdout.write(\"$2\")";
 		import("sys");
 	} elsif ($line =~ /^(\s*)echo -n$/) {
 		#converts echo -n without args to sys.stdout.write("")
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.stdout.write(\"\")";
 		import("sys");
 	} elsif ($line =~ /^(\s*)echo ["'](\s*)["']$/) {
 		#converts echo with blank string to print with blank string
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."print \"$2\"";
 	} elsif ($line =~ /^(\s*)echo$/) {
 		#converts echo without args to print without args
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."print";
 	} elsif ($line =~ /^(\s*)echo -n (.+)/) {
 		#converts all other calls to echo -n to calls to print
@@ -50,8 +78,8 @@ while ($line = <>) {
 		#converts all other calls to echo to calls to print
 		my ($leading_whitespace, $echo_to_print) = ($1, $2);
 		convert_echo($leading_whitespace, $echo_to_print, 1);
-	} elsif ($line =~ /^(\s*)(chmod|cp|mv)( -.+)* (.+) (.+)/) {
-		my ($leading_whitespace, $cmd, $options, $arg1, $arg2) = ($1, $2, $3, $4, $5);
+	} elsif ($line =~ /^(\s*)(echo `|echo \$\()?(chmod|cp|mv|join)[`)]?( -.+)* (.+) (.+)/) {
+		my ($leading_whitespace, $cmd, $options, $arg1, $arg2) = ($1, $3, $4, $5, $6);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 
@@ -73,8 +101,8 @@ while ($line = <>) {
 
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(ls|rm|touch|sleep|mkdir|rmdir|unzip|gzip)( -.+)* (.+)/) {
-		my ($leading_whitespace, $cmd, $options, $args) = ($1, $2, $3, $4);
+	} elsif ($line =~ /^(\s*)(echo `|echo \$\()?($commands|$filters)[`)]?( -.+)* (.+)/) {
+		my ($leading_whitespace, $cmd, $options, $args) = ($1, $3, $4, $5);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 
@@ -95,17 +123,17 @@ while ($line = <>) {
 
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(ls|pwd|id|date)( -.+)*/) {
-		my ($leading_whitespace, $cmd, $options) = ($1, $2, $3);
+	} elsif ($line =~ /^(\s*)(echo `|echo \$\()?(ls|pwd|id|date)[`)]?( -.+)*/) {
+		my ($leading_whitespace, $cmd, $options) = ($1, $3, $4);
 		$options =~ s/ /', '/g if $options; #seperates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 		$system_call = "['$cmd', '$options']" if $options;
 		$system_call = "['$cmd']" if !$options;
 		push @code, $leading_whitespace."subprocess.call($system_call)";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=`expr (.+)`/) {
+	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(`|\$\()expr (.+)[`)]/) {
 		#handles variable initialisation involving 'var=`expr .+`'
-		my ($leading_whitespace, $variable, $shell_expression) = ($1, $2, $3);
+		my ($leading_whitespace, $variable, $shell_expression) = ($1, $2, $4);
 		$python_expression = convert_variable_initialisation($shell_expression);
 		push @code, $leading_whitespace."$variable = $python_expression";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$\(\((.+)\)\)/) {
@@ -115,21 +143,21 @@ while ($line = <>) {
 		push @code, $leading_whitespace."$variable = $python_expression";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$#/) {
 		#handles variable initialisation involving 'var=$#'
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = len(sys.argv)";
 		import("sys");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$([0-9]+)/) {
 		#handles variable initialisation involving 'var=$[0-9]+'
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.argv[$3]";
 		import("sys");
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=\$([^ ]+)/) {
 		#handles variable initialisation involving 'var=$.+'
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = $3";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=([0-9]+)/) {
 		#handles variable initialisation involving 'var=num'
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = $3";
 	} elsif ($line =~ /^(\s*)([a-zA-Z_][a-zA-Z0-9_]*)=(.+)/) {
 		#handles variable initialisation involving 'var=val'
@@ -138,28 +166,28 @@ while ($line = <>) {
 		$value =~ s/'(.*)'/$1/; #removes leading/trailing '
 		push @code, $leading_whitespace."$name = '$value'";
 	} elsif ($line =~ /^(\s*)cd ([^ ]+)/) {
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."os.chdir('$2')";
 		import("os");
 	} elsif ($line =~ /^(\s*)exit ([0-9]+)/) {
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."sys.exit($2)";
 		import("sys");
 	} elsif ($line =~ /^(\s*)read ([^ ]+)/) {
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."$2 = sys.stdin.readline().rstrip()";
 		import("sys");
 	} elsif ($line =~ /^(\s*)for ([^ ]+) in \"\$\*\"/) {
 		#handles for loops involving "$*"
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."for $2 in ' '.join(sys.argv[1:]):";
 	} elsif ($line =~ /^(\s*)for ([^ ]+) in \"?\$[\@\*]/) {
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		#handles for loops involving $[@*]
 		push @code, $leading_whitespace."for $2 in sys.argv[1:]:";
 	} elsif ($line =~ /^(\s*)for ([^ ]+) in ([^\?\*]+)/) {
 		my ($leading_whitespace, $loop_variable) = ($1, $2);
-		@args = split / /, $3;
+		my @args = split / /, $3;
 
 		#appends each arg to loop in the format <arg> or '<arg>'
 		foreach $arg (@args) {
@@ -185,7 +213,7 @@ while ($line = <>) {
 		my ($leading_whitespace, $control, $cmd) = ($1, $2, $3);
 		push @code, $leading_whitespace."$control not subprocess.call(['$cmd']):";
 		import("subprocess");
-	} elsif ($line =~ /^(\s*)(if|elif|while) (diff|fgrep)( -.+)* (.+) (.+)/) {
+	} elsif ($line =~ /^(\s*)(if|elif|while) (diff|cmp|fgrep)( -.+)* (.+) (.+)/) {
 		#handles if/elif/while with negated diff/fgrep
 		my ($leading_whitespace, $control, $cmd, $options, $file1, $file2) = ($1, $2, $3, $4, $5, $6);
 		$file1 = map_option_arg($file1);
@@ -199,21 +227,21 @@ while ($line = <>) {
 	} elsif ($line =~ /^(\s*)(if|elif|while) test (.+)/) {
 		#handles all other if/elif/while statements with test command
 		my ($leading_whitespace, $control, $expression) = ($1, $2, $3);
-		$python_expression = map_if_while($expression);
+		my $python_expression = map_if_while($expression);
 		$python_expression =~ s/ $//; #removes trailing space
 		push @code, $leading_whitespace."$control $python_expression:";
 	} elsif ($line =~ /^(\s*)(if|elif|while) \[ (.+) \]/) {
 		#handles all other if/elif/while statements with [ ] notation
 		my ($leading_whitespace, $control, $expression) = ($1, $2, $3);
-		$python_expression = map_if_while($expression);
+		my $python_expression = map_if_while($expression);
 		$python_expression =~ s/ $//; #removes trailing space
 		push @code, $leading_whitespace."$control $python_expression:";
 	} elsif ($line =~ /^(\s*):/) {
 		#matches empty statements
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."pass";
 	} elsif ($line =~ /^(\s*)else/) {
-		$leading_whitespace = $1;
+		my $leading_whitespace = $1;
 		push @code, $leading_whitespace."else:"; #translates 'else' into 'else:'
 	} elsif ($line =~ /^\s*(do|done|then|fi)/) {
 		push @code, " "; #appends blank line for correct alignment of comments
@@ -223,26 +251,6 @@ while ($line = <>) {
 		#converts all other lines into untranslated comments
 		push @code, "#$line [UNTRANSLATED CODE]";
 	}
-
-	#stores end-of-line comments in a hash aligned with current line of code
-	if ($comment ne "") {
-		$comments{$code[$#code]} = $comment;
-	}
-
-}
-
-#copies end-of-line comments into python source code
-$i = 0;
-for ($i..$#code) {
-	$code[$i] .= $comments{$code[$i]} if $comments{$code[$i]}; #appends comment to end of line
-	$i++;
-}
-
-#prints rendered python code to stdout
-unshift @code, "#Converted by shpy.pl [".(scalar localtime)."]\n";
-unshift @code, "$interpreter" if $interpreter;
-foreach $line (@code) {
-	print "$line\n" if $line ne " ";
 }
 
 #prepends an import of the given package to the code if not already present

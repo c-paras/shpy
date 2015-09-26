@@ -14,3 +14,4 @@ Date		Time		Activity	Description
 20/09/2015	14:00-16:00	debugging	fixed issues with end-of-line comments, variable initialisation, if/elif/while and system calls
 20/09/2015	18:00-20:30	coding		removed simplifying assumptions involving common unix commands and started subset 4
 25/09/2015	20:30-11:30	coding		implemented $(()) and re-indenting of lines, fixed bugs with end-of-line comments
+26/09/2015	09:30-12:00	coding		implemented $() and more commands/filters, extended back quotes compatibility
