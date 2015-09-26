@@ -40,6 +40,7 @@ do
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	elif [ "$base" == "for_read0" ]
+
 	then
 		#compares output of shell and python code for randomised input 1..10
 		sh "$file" > $tmp1 < ~/ass1/examples/input
@@ -70,6 +71,14 @@ do
 		~/ass1/shpy.pl "$file" > $code
 		python -u $code 3 15 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "series" ]
+	then
+		#compares output of shell and python code and removes temporary file
+		sh "$file" > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && rm tmp.numbers && continue
 		abort_tests "$base"
 	else
 		#compares output of shell and python code
