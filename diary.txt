@@ -16,3 +16,4 @@ Date		Time		Activity	Description
 25/09/2015	20:30-11:30	coding		implemented $(()) and re-indenting of lines, fixed bugs with end-of-line comments
 26/09/2015	09:30-12:00	coding		implemented $() and more commands/filters, extended back quotes compatibility
 26/09/2015	13:00-14:00	coding		implemented shell i/o redirection with > and >>
+26/09/2015	15:00-19:30	debugging	found bug in for loops and fixed overlooked comparison, negation and boolean operators in test, added more tests

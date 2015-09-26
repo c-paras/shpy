@@ -18,11 +18,19 @@ do
 	base=`basename "$file" .sh`
 
 	if [ "$base" == "demo00" ]
-        then
-		#compares output of shell and python code for dimension 4 by 7
-		sh "$file" 4 7 > $tmp1
+	then
+		#compares output of shell and python code for dimension 8 by 12
+		sh "$file" 8 12 > $tmp1
 		~/ass1/shpy.pl "$file" > $code
-		python -u $code 4 7 > $tmp2
+		python -u $code 8 12 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "test02" ]
+	then
+		#compares output of shell and python code for inpput args of 4 and 5
+		sh "$file" 4 5 > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code 4 5 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	else
@@ -32,7 +40,7 @@ do
 		python -u $code > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
-	fi
+fi
 done
 
 echo

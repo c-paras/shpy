@@ -22,9 +22,14 @@ while ($line = <>) {
 		$line =~ s/$1$//;
 	}
 
-	#converts and appends line to python code
-	$line = parse_line($line);
-	push @code, $leading_whitespace.$line;
+	if ($line =~ /^#!/ && $. == 1) {
+		#converts hashbang line if present
+                $interpreter = "#!/usr/bin/python2.7 -u";
+        } else {
+		#converts and appends all other lines to python code
+		$line = parse_line($line);
+		push @code, $leading_whitespace.$line;
+	}
 
 	#stores end-of-line comments in a hash aligned with current line of code
 	if ($comment ne "") {
@@ -50,9 +55,8 @@ foreach $line (@code) {
 
 #parses current line of shell script
 sub parse_line {
-	if ($line =~ /^#!/ && $. == 1) {
-		$interpreter = "#!/usr/bin/python2.7 -u";
-	} elsif ($line =~ /^(#.*)/) {
+	my $line = $_[0];
+	if ($line =~ /^(#.*)/) {
 		return "$1"; #copies start-of-line comments into python code
 	} elsif ($line =~ /^echo -n ["'](\s*)["']$/) {
 		#converts echo -n with blank string to sys.stdout.write("\s*")
@@ -150,7 +154,7 @@ sub parse_line {
 	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$#/) {
 		#handles variable initialisation involving 'var=$#'
 		import("sys");
-		return "$1 = len(sys.argv)";
+		return "$1 = len(sys.argv) - 1";
 	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$([0-9]+)/) {
 		#handles variable initialisation involving 'var=$[0-9]+'
 		import("sys");
@@ -183,20 +187,8 @@ sub parse_line {
 		#handles for loops involving $[@*] or "$@"
 		return "for $1 in sys.argv[1:]:";
 	} elsif ($line =~ /^for ([^ ]+) in ([^\?\*]+)/) {
-		my $loop_variable = $1;
-		my @args = split / /, $2;
-
-		#appends each arg to loop in the format <arg> or '<arg>'
-		foreach $arg (@args) {
-			if ($arg =~ /[0-9]+/) {
-				$loop_args .= "$arg, "; #formats numeric values
-			} else {
-				$loop_args .= "'$arg', "; #formats words
-			}
-		}
-
-		$loop_args =~ s/, $/:/; #converts last instance of ", " to :
-		return "for $loop_variable in $loop_args";
+		#handles for loops which iterate over a list
+		return map_for_loops($1, $2);
 	} elsif ($line =~ /^for ([^ ]+) in (.+)/) {
 		my ($loop_variable, $file_type) = ($1, $2);
 		import("glob");
@@ -220,18 +212,20 @@ sub parse_line {
 		$system_call = "['$cmd', $file1, $file2]" if !$options;
 		import("subprocess");
 		return "$control not subprocess.call($system_call):";
-	} elsif ($line =~ /^(if|elif|while) test (.+)/) {
+	} elsif ($line =~ /^(if|elif|while) (! )?test (.+)/) {
 		#handles all other if/elif/while statements with test command
-		my ($control, $expression) = ($1, $2);
+		my ($control, $negation, $expression) = ($1, $2, $3);
 		my $python_expression = map_if_while($expression);
 		$python_expression =~ s/ $//; #removes trailing space
-		return "$control $python_expression:";
-	} elsif ($line =~ /^(if|elif|while) \[ (.+) \]/) {
+		return "$control $python_expression:" if !$negation;
+		return "$control not ($python_expression):" if $negation;
+	} elsif ($line =~ /^(if|elif|while) (! )?\[ (.+) \]/) {
 		#handles all other if/elif/while statements with [ ] notation
-		my ($control, $expression) = ($1, $2);
+		my ($control, $negation, $expression) = ($1, $2, $3);
 		my $python_expression = map_if_while($expression);
 		$python_expression =~ s/ $//; #removes trailing space
-		return "$control $python_expression:";
+		return "$control $python_expression:" if !$negation;
+		return "$control not ($python_expression):" if $negation;
 	} elsif ($line =~ /^:/) {
 		#matches empty statements
 		return "pass";
@@ -272,19 +266,16 @@ sub indent_code {
 #converts numeric and non-numeric test operators to python style operators
 sub convert_operator {
 	my $operator = $_[0];
-
-	if ($operator eq "eq") {
-		return "==";
-	} elsif ($operator eq "=" || $operator eq "==") {
-		return "==";
-	} elsif ($operator eq "ne") {
+	if ($operator eq "eq" || $operator =~ /=/) {
+		return "=="; #accounts for -eq, = and ==
+	} elsif ($operator eq "ne" || $operator eq "!=") {
 		return "!=";
-	} elsif ($operator eq "lt") {
-		return "<";
+	} elsif ($operator eq "lt" || $operator =~ /</) {
+		return "<"; #accounts for -lt, \<, '<' and "<"
 	} elsif ($operator eq "le") { 
 		return "<=";
-	} elsif ($operator eq "gt") {
-		return ">";
+	} elsif ($operator eq "gt" || $operator =~ />/) {
+		return ">"; #accounts for -gt, \>, '>' and ">"
 	} elsif ($operator eq "ge") {
 		return ">=";
 	}
@@ -301,8 +292,9 @@ sub convert_variable_initialisation {
 		$expression =~ s/\\(.+)/$1/; #converts operators escaped with \
 		$expression =~ s/\"(.+)\"/$1/; #converts operators escaped with ""
 		$expression =~ s/'(.+)'/$1/; #converts operators escaped with ''
+		$python_exp .= "(" if $expression =~ /^\(/; #appends open bracket
 		if ($expression =~ /\$([0-9]+)/) {
-			$python_exp .= "sys.argv[$1] "; #handles special vars
+			$python_exp .= "int(sys.argv[$1]) "; #handles special vars
 			import("sys");
 		} elsif ($expression =~ /\$#/) {
 			$python_exp .= "(len(sys.argv) - 1) "; #handles '$#' var
@@ -311,8 +303,11 @@ sub convert_variable_initialisation {
 			$python_exp .= "int($1) "; #handles all other vars
 		} else {
 			#copies arithmetic operators and numeric values
-			$python_exp .= "$expression ";
+			my $filtered_expression = $expression;
+			$filtered_expression =~ s/[)(]//; #removes brackets
+			$python_exp .= "$filtered_expression ";
 		}
+		$python_exp .= ")" if $expression =~ /\)$/; #appends close bracket
 	}
 
 	$python_exp =~ s/ $//; #removes trailing ' ' char
@@ -430,8 +425,8 @@ sub map_option_arg {
 		#interpolates variables with double quotes
 		$interpolate_variables = 1;
 		$input = map_special_variable($1);
-	} elsif ($input =~ /^('\$.+')$/) {
-		#returns variables within single quotes
+	} elsif ($input =~ /^('.+')$/) {
+		#returns args and variables within single quotes
 		$input = $1;
 	} elsif ($input =~ /^\$/) {
 		#interpolates other variables
@@ -441,7 +436,7 @@ sub map_option_arg {
 
 		#non-special variables require str(var)
 		$input = "str($input)" if $_[0] =~ /\$[a-zA-Z_][a-zA-Z0-9_]*/;
-	} elsif ($input =~ /^'.+'$/) {
+	} elsif ($input =~ /^\".+\"$/) {
 		return $input; #returns original string
 	} else {
 		$input = "'$input'"; #returns quoted string
@@ -481,18 +476,22 @@ sub map_if_while {
 
 	#maps each term of the shell expression to its analogue in python
 	while ($i <= $#terms) {
-		#skips empty terms
-		$i++ if $terms[$i] eq "";
-		last if $i > $#terms;
+		#skips empty terms and [ or ] terms
+		while ($terms[$i] =~ /^\s*$/ || $terms[$i] =~ /\]|\[/) {
+			$i++;
+			last if $i > $#terms;
+		}
 
-		if ($terms[$i] eq "-a") {
+		if ($terms[$i] eq "-a" || $terms[$i] eq "&&") {
 			$python_expression .= "and";
-		} elsif ($terms[$i] eq "-o") {
+		} elsif ($terms[$i] eq "-o" || $terms[$i] eq "||") {
 			$python_expression .= "or";
+		} elsif ($terms[$i] eq "!") {
+			$python_expression .= "not";
 		} elsif ($terms[$i] =~ /^-(eq|ne|lt|le|gt|ge)$/) {
 			#matches numeric comparisons
 			$python_expression .= convert_operator($1);
-		} elsif ($terms[$i] eq "=" || $terms[$i] eq "==") {
+		} elsif ($terms[$i] =~ /[<=>]/) {
 			#matches string comparisons
 			$python_expression .= convert_operator($terms[$i]);
 		} elsif ($terms[$i] =~ /^-[erwxfdh]$/) {
@@ -501,9 +500,9 @@ sub map_if_while {
 		} elsif ($terms[$i] =~ /^\$/) {
 
 			#maps special variables to their python analogues
-			if ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
+			if ($terms[$i - 1] && $terms[$i - 1] =~ /[<=>]/) {
 				$python_expression .= map_option_arg($terms[$i]);
-			} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
+			} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /[<=>]/) {
 				$python_expression .= map_option_arg($terms[$i]);
 			} else {
 				$python_expression .= "int(";
@@ -511,16 +510,66 @@ sub map_if_while {
 				$python_expression .= ")";
 			}
 
-		} elsif ($terms[$i - 1] && $terms[$i - 1] =~ /=/) {
+		} elsif ($terms[$i - 1] && $terms[$i - 1] =~ /[<=>]/) {
 			$python_expression .= "'$terms[$i]'"; #maps strings
-		} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /=/) {
+		} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /[<=>]/) {
 			$python_expression .= "'$terms[$i]'"; #maps strings
 		} else {
-			$python_expression .= "int($terms[$i])" #maps remaining terms as integers
+			#maps remaining terms as integers
+			$python_expression .= "int($terms[$i])"
 		}
 		$python_expression .= " ";
 		$i++;
 	}
 
 	return $python_expression;
+}
+
+#map for loops to their python analogues
+sub map_for_loops {
+	my ($loop_variable, $args) = @_;
+	my $str = "";
+
+	#parses the string of loop args
+	my @str = split //, $args;
+	my $quotation = 0; #marks start/stop of quotation marks
+	my $space = 0; #indicates whether previous char was a space
+	for $char (@str) {
+		next if $char eq "";
+		if ($quotation == 0 && $char =~ /['\"]/) {
+			$quotation = 1;
+			$str .= $char;
+		} elsif ($quotation == 1 && $char =~ /['\"]/) {
+			$quotation = 0;
+			$str .= $char;
+		} elsif ($quotation == 1 && $char eq " ") {
+			$str .= "*"; #re-formats spaces within quotes
+		} elsif ($space == 0 && $char eq " ") {
+			$space = 1;
+			$str .= $char;
+		} elsif ($space == 0 || ($space == 1 && $char ne " ")) {
+			$space = 0;
+			$str .= $char;
+		}
+	}
+
+	my @args = split / /, $str;
+	my $loop_args = "";
+	my $i = 0;
+
+	#appends each arg to loop in the appropriate format
+	while ($i <= $#args) {
+		#skips empty args
+		while ($args[$i] =~ /^\s*$/) {
+			$i++;
+			last if $i > $#args;
+		}
+
+		$args[$i] =~ s/\*/ /g; #re-formats * to spaces
+		$loop_args .= map_option_arg($args[$i]).", "; #handles variables
+		$i++;
+	}
+
+	$loop_args =~ s/, $/:/; #converts last instance of ", " to :
+	return "for $loop_variable in $loop_args";
 }
