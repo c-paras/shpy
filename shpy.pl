@@ -180,11 +180,13 @@ sub parse_line {
 	} elsif ($line =~ /^read ([^ ]+)/) {
 		import("sys");
 		return "$1 = sys.stdin.readline().rstrip()";
-	} elsif ($line =~ /^for ([^ ]+) in \"\$\*\"/) {
+	} elsif ($line =~ /^for ([^ ]+) in \"\$\*\"$/) {
 		#handles for loops involving "$*"
+		import("sys");
 		return "for $1 in ' '.join(sys.argv[1:]):";
 	} elsif ($line =~ /^for ([^ ]+) in \"?\$[\@\*]/) {
 		#handles for loops involving $[@*] or "$@"
+		import("sys");
 		return "for $1 in sys.argv[1:]:";
 	} elsif ($line =~ /^for ([^ ]+) in ([^\?\*]+)/) {
 		#handles for loops which iterate over a list
@@ -196,14 +198,15 @@ sub parse_line {
 	} elsif ($line =~ /^while read ([^ ])/) {
 		import("sys");
 		return "for $1 in sys.stdin:";
-	} elsif ($line =~ /^(if|elif|while) (true|false)/) {
-		#handles if/elif/while with negated true/false
-		my ($control, $cmd) = ($1, $2);
+	} elsif ($line =~ /^(if|elif|while) (! )?(true|false)/) {
+		#handles if/elif/while with true/false
+		my ($control, $negation, $cmd) = ($1, $2, $3);
 		import("subprocess");
-		return "$control not subprocess.call(['$cmd']):";
-	} elsif ($line =~ /^(if|elif|while) (diff|cmp|fgrep)( -.+)* (.+) (.+)/) {
-		#handles if/elif/while with negated diff/fgrep
-		my ($control, $cmd, $options, $file1, $file2) = ($1, $2, $3, $4, $5);
+		return "$control not subprocess.call(['$cmd']):" if !$negation;
+		return "$control subprocess.call(['$cmd']):" if $negation;
+	} elsif ($line =~ /^(if|elif|while) (! )?(diff|cmp|fgrep)( -.+)* (.+) (.+)/) {
+		#handles if/elif/while with diff/cmp/fgrep
+		my ($control, $negation, $cmd, $options, $file1, $file2) = ($1, $2, $3, $4, $5, $6);
 		$file1 = map_option_arg($file1);
 		$file2 = map_option_arg($file2);
 		$options =~ s/ /', '/g if $options; #seperates options
@@ -211,7 +214,8 @@ sub parse_line {
 		$system_call = "['$cmd', '$options', $file1, $file2]" if $options;
 		$system_call = "['$cmd', $file1, $file2]" if !$options;
 		import("subprocess");
-		return "$control not subprocess.call($system_call):";
+		return "$control not subprocess.call($system_call):" if !$negation;
+		return "$control subprocess.call($system_call):" if $negation;
 	} elsif ($line =~ /^(if|elif|while) (! )?test (.+)/) {
 		#handles all other if/elif/while statements with test command
 		my ($control, $negation, $expression) = ($1, $2, $3);
@@ -219,7 +223,7 @@ sub parse_line {
 		$python_expression =~ s/ $//; #removes trailing space
 		return "$control $python_expression:" if !$negation;
 		return "$control not ($python_expression):" if $negation;
-	} elsif ($line =~ /^(if|elif|while) (! )?\[ (.+) \]/) {
+	} elsif ($line =~ /^(if|elif|while) (! )?\[(.+)\]/) {
 		#handles all other if/elif/while statements with [ ] notation
 		my ($control, $negation, $expression) = ($1, $2, $3);
 		my $python_expression = map_if_while($expression);
@@ -229,6 +233,8 @@ sub parse_line {
 	} elsif ($line =~ /^:/) {
 		#matches empty statements
 		return "pass";
+	} elsif ($line =~ /^(break|continue)/) {
+		return "$1";
 	} elsif ($line =~ /^else/) {
 		return "else:"; #translates 'else' into 'else:'
 	} elsif ($line =~ /^(do|done|then|fi)/) {
@@ -266,7 +272,7 @@ sub indent_code {
 #converts numeric and non-numeric test operators to python style operators
 sub convert_operator {
 	my $operator = $_[0];
-	if ($operator eq "eq" || $operator =~ /=/) {
+	if ($operator eq "eq" || $operator =~ /^=/) {
 		return "=="; #accounts for -eq, = and ==
 	} elsif ($operator eq "ne" || $operator eq "!=") {
 		return "!=";
@@ -284,7 +290,9 @@ sub convert_operator {
 
 #converts variable initialisations involving var=`expr .+` and var=$((.+))
 sub convert_variable_initialisation {
-	my @shell_exp = split / /, $_[0];
+	my $shell_exp = $_[0];
+	$shell_exp =~ s/\s+/ /g; #condenses whitespace to increase readability
+	my @shell_exp = split / /, $shell_exp;
 	my $python_exp = "";
 
 	#converts each expression from shell style to python style
@@ -307,9 +315,11 @@ sub convert_variable_initialisation {
 			$filtered_expression =~ s/[)(]//; #removes brackets
 			$python_exp .= "$filtered_expression ";
 		}
-		$python_exp .= ")" if $expression =~ /\)$/; #appends close bracket
+		$python_exp =~ s/\s+$// if $expression =~ /\)$/; #removes space before bracket
+		$python_exp .= ") " if $expression =~ /\)$/; #appends close bracket
 	}
 
+	$python_exp =~ s/\( /\(/g; #increases readability by condensing spaces
 	$python_exp =~ s/ $//; #removes trailing ' ' char
 	return $python_exp;
 }
@@ -379,12 +389,25 @@ sub append_variables {
 		#filters out empty strings
 		$i++ if $words[$i] =~ /^$/;
 		last if $i > $#words;
+
 		$words[$i] =~ s/'//g; #deals with ' chars later
 		my $mapped_variable = map_special_variable($words[$i]);
-		$string_to_print .= "$mapped_variable + " if $i < $#words;
-		$string_to_print .= "$mapped_variable, " if $i == $#words && $word !~ /('+)$/;
-		$string_to_print .= "$mapped_variable + " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 1;
-		$string_to_print .= "$mapped_variable, " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 0;
+
+		#handles variables of the form $var[trailing chars]+
+		if ($words[$i] =~ /^([a-zA-Z_][a-zA-Z0-9_]*|[@*#]|[0-9]+)([^a-zA-Z0-9_']+)$/) {
+			my $trailing_chars = $2;
+			$mapped_variable =~ s/$trailing_chars$//;
+			$string_to_print .= "$mapped_variable + '$trailing_chars'";
+		} else {
+			$string_to_print .= "$mapped_variable";
+		}
+
+		#appends appropriate connector
+		$string_to_print .= " + " if $i < $#words;
+		$string_to_print .= ", " if $i == $#words && $word !~ /('+)$/;
+		$string_to_print .= " + " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 1;
+		$string_to_print .= ", " if $i == $#words && $word =~ /('+)$/ && $interpolate_variables == 0;
+
 		$i++;
 	}
 
@@ -404,15 +427,15 @@ sub map_special_variable {
 
 	#handles special variables
 	import("sys");
-	if ($var =~ /^[0-9]+$/) {
-		return "sys.argv[$var]";
-	} elsif ($var =~ /^\@$/) {
+	if ($var =~ /^([0-9]+)/) {
+		return "sys.argv[$1]";
+	} elsif ($var =~ /^\@/) {
 		return "sys.argv[1:]";
-	} elsif ($var =~ /^\*$/ && $interpolate_variables == 0) {
+	} elsif ($var =~ /^\*/ && $interpolate_variables == 0) {
 		return "sys.argv[1:]";
-	} elsif ($var =~ /^\*$/ && $interpolate_variables == 1) {
+	} elsif ($var =~ /^\*/ && $interpolate_variables == 1) {
 		return "' '.join(sys.argv[1:])";
-	} elsif ($var =~ /^\#$/) {
+	} elsif ($var =~ /^\#/) {
 		return "(len(sys.argv) - 1)";
 	}
 
@@ -421,6 +444,7 @@ sub map_special_variable {
 #maps options or arguments to their interpolated values
 sub map_option_arg {
 	my $input = $_[0];
+
 	if ($input =~ /^\"\$(.+)\"/) {
 		#interpolates variables with double quotes
 		$interpolate_variables = 1;
@@ -461,7 +485,7 @@ sub map_file_test {
 		return "os.path.isfile($file)"
 	} elsif ($test_operator eq "-d") {
 		return "os.path.isdir($file)";
-	} elsif ($test_operator eq "-h") {
+	} elsif ($test_operator eq "-h" || $test_operator eq "-L") {
 		return "os.path.islink($file)";
 	}
 
@@ -470,7 +494,7 @@ sub map_file_test {
 #maps all if/elif and while statements to their python analogues
 sub map_if_while {
 	my $expression = $_[0];
-	my @terms = split / /, $expression;
+	my @terms = $expression =~ /(".+"|'.+'|\S+)/g; #splits string at spaces and quotes
 	my $python_expression = "";
 	my $i = 0;
 
@@ -494,7 +518,7 @@ sub map_if_while {
 		} elsif ($terms[$i] =~ /[<=>]/) {
 			#matches string comparisons
 			$python_expression .= convert_operator($terms[$i]);
-		} elsif ($terms[$i] =~ /^-[erwxfdh]$/) {
+		} elsif ($terms[$i] =~ /^-[erwxfdhL]$/) {
 			#matches file test operators
 			$python_expression .= map_file_test($terms[$i], $terms[++$i]);
 		} elsif ($terms[$i] =~ /^\$/) {
@@ -511,9 +535,19 @@ sub map_if_while {
 			}
 
 		} elsif ($terms[$i - 1] && $terms[$i - 1] =~ /[<=>]/) {
-			$python_expression .= "'$terms[$i]'"; #maps strings
+			#maps strings
+			if ($terms[$i] =~ /^\".*\"$/ || $terms[$i] =~ /^'.*'$/) {
+				$python_expression .= "$terms[$i]";
+			} else {
+				$python_expression .= "'$terms[$i]'";
+			}
 		} elsif ($terms[$i + 1] && $terms[$i + 1] =~ /[<=>]/) {
-			$python_expression .= "'$terms[$i]'"; #maps strings
+			#maps strings
+			if ($terms[$i] =~ /^\".*\"$/ || $terms[$i] =~ /^'.*'$/) {
+				$python_expression .= "$terms[$i]";
+			} else {
+				$python_expression .= "'$terms[$i]'"; 
+			}
 		} else {
 			#maps remaining terms as integers
 			$python_expression .= "int($terms[$i])"
@@ -529,31 +563,8 @@ sub map_if_while {
 sub map_for_loops {
 	my ($loop_variable, $args) = @_;
 	my $str = "";
+	my @args = $args =~ /(".+"|'.+'|\S+)/g; #splits string at spaces and quotes
 
-	#parses the string of loop args
-	my @str = split //, $args;
-	my $quotation = 0; #marks start/stop of quotation marks
-	my $space = 0; #indicates whether previous char was a space
-	for $char (@str) {
-		next if $char eq "";
-		if ($quotation == 0 && $char =~ /['\"]/) {
-			$quotation = 1;
-			$str .= $char;
-		} elsif ($quotation == 1 && $char =~ /['\"]/) {
-			$quotation = 0;
-			$str .= $char;
-		} elsif ($quotation == 1 && $char eq " ") {
-			$str .= "*"; #re-formats spaces within quotes
-		} elsif ($space == 0 && $char eq " ") {
-			$space = 1;
-			$str .= $char;
-		} elsif ($space == 0 || ($space == 1 && $char ne " ")) {
-			$space = 0;
-			$str .= $char;
-		}
-	}
-
-	my @args = split / /, $str;
 	my $loop_args = "";
 	my $i = 0;
 
@@ -565,7 +576,6 @@ sub map_for_loops {
 			last if $i > $#args;
 		}
 
-		$args[$i] =~ s/\*/ /g; #re-formats * to spaces
 		$loop_args .= map_option_arg($args[$i]).", "; #handles variables
 		$i++;
 	}

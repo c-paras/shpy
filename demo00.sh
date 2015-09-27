@@ -1,39 +1,39 @@
 #!/bin/sh
+#This script prints a sequence of integers between given bounds
 
-#obtains input from user
-if test $# -ne 2
+#obtains input parameters
+if test $# -lt 2
 then
-	echo "Usage: $0 <height> <width>"
+	echo "Usage: $0 <min> <optional increment> <max>"
 	exit 1
-else
-	height=$1
-	width=$2
+elif [ $# -eq 2 ]
+then
+	min=$1
+	inc=1
+	max=$2
+elif [ $# -eq 3 ]
+then
+	min=$1
+	inc=$2
+	max=$3
 fi
 
-pattern="@"
-border='#'
-i=1
+#aborts if invalid parameters were supplied
+if test $inc -eq 0
+then
+	echo $0: increment cannot be zero
+	exit 1
+elif test $max -le $min
+then
+	echo $0: max must be greater than min
+	exit 1
+fi
 
-#prints out rectangle
-while [ $i -le $height ] #prints row by row
+i=$min
+
+#prints sequence of integers
+while test $i -le $max
 do
-	j=1
-	while test $j -le $width #prints column by column
-	do
-
-		#prints border and internal pattern
-		if test $i -eq 1 -o $i -eq $height
-		then
-			echo -n $border
-		elif [ $j -eq 1 -o $j -eq $width ]
-		then
-			echo -n $border
-		else
-			echo -n $pattern
-		fi
-
-		j=`expr $j + 1`
-	done
-	echo
-	i=$(expr $i + 1)
+	echo $i
+	i=`expr $i + $inc`
 done

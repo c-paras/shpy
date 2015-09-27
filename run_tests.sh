@@ -13,11 +13,35 @@ abort_tests() {
 }
 
 #runs all demo and test files in the current directory
-for file in demo??.sh test??.sh
+for file in test??.sh demo??.sh
 do
 	base=`basename "$file" .sh`
 
-	if [ "$base" == "demo00" ]
+	if [ "$base" == "test02" ]
+	then
+		#compares output of shell and python code for input args of 4 and 5
+		sh "$file" 4 5 > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code 4 5 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "test03" ]
+	then
+		#compares output of shell and python code for input args of t, e, s, t
+		sh "$file" t e s t > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code t e s t > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "demo00" ]
+	then
+		#compares output of shell and python code for sequence -4 3 18
+		sh "$file" -4 3 18 > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code -4 3 18 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "demo01" ]
 	then
 		#compares output of shell and python code for dimension 8 by 12
 		sh "$file" 8 12 > $tmp1
@@ -25,12 +49,12 @@ do
 		python -u $code 8 12 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
-	elif [ "$base" == "test02" ]
+	elif [ "$base" == "demo02" ]
 	then
-		#compares output of shell and python code for inpput args of 4 and 5
-		sh "$file" 4 5 > $tmp1
+		#compares output of shell and python code for input args -4 5 10 -15 100
+		sh "$file" -4 5 10 -15 100 > $tmp1
 		~/ass1/shpy.pl "$file" > $code
-		python -u $code 4 5 > $tmp2
+		python -u $code -4 5 10 -15 100 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	else
