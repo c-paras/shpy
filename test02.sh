@@ -2,11 +2,31 @@
 #This script demonstrates various ways to initialise variables
 #Formats of initialisation include `expr .+` and $(expr .+) and the $((.+)) shell syntax
 
-#basic variable initialisation
+#single quote variable initialisation
+var0='this is a test'
+echo $var0
+var0='$var0'
+echo $var0
+var0='$#'
+echo $var0
+var0='$1'
+echo $var0
+var0='$2'
+echo $var0
+
+#double quote variable initialisation
 var0="this is a test"
 echo $var0
-var1="$var0"
-echo $var1
+var0="$var0"
+echo $var0
+var0="$#"
+echo $var0
+var0="$1"
+echo $var0
+var0="$2"
+echo $var0
+
+#basic variable initialisation
 var=65536
 echo $var
 var=$#

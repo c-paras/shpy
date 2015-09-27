@@ -165,6 +165,11 @@ sub parse_line {
 	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=([0-9]+)/) {
 		#handles variable initialisation involving 'var=num'
 		return "$1 = $2";
+	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\"(.+)\"/) {
+		#handles variable initialisation involving 'var="val"'
+		my ($name, $value) = ($1, $2);
+		$value = map_option_arg($value);
+		return "$name = $value";
 	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=(.+)/) {
 		#handles variable initialisation involving 'var=val'
 		my ($name, $value) = ($1, $2);
