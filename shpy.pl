@@ -72,6 +72,20 @@ sub parse_line {
 	} elsif ($line =~ /^echo$/) {
 		#converts echo without args to print without args
 		return "print";
+	} elsif ($line =~ /^echo (-n )?(`|\$\()expr (.+)[`)]/) {
+		#handles echo an echo -n with back quotes
+		my ($print_newline, $shell_exp) = ($1, $3);
+		$python_expression = convert_variable_initialisation($shell_exp);
+		return "print $python_expression" if !$print_newline;
+		import("sys");
+		return "print $python_expression,\n".$leading_whitespace."sys.stdout.write('')";
+	} elsif ($line =~ /^echo (-n )?\$\(\((.+)\)\)/) {
+		#handles echo and echo -n with shell arithmetic
+		my ($print_newline, $shell_exp) = ($1, $2);
+		$python_expression = convert_variable_initialisation($shell_exp);
+		return "print $python_expression" if !$print_newline;
+		import("sys");
+		return "print $python_expression,\n".$leading_whitespace."sys.stdout.write('')";
 	} elsif ($line =~ /^echo -n (.+)/) {
 		#converts all other calls to echo -n to calls to print
 		return convert_echo($1, 0);
@@ -135,16 +149,16 @@ sub parse_line {
 		$system_call = "['$cmd']" if !$options;
 		import("subprocess");
 		return "subprocess.call($system_call)";
-	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=(`|\$\()expr (.+)[`)]/) {
-		#handles variable initialisation involving 'var=`expr .+`' or 'var=$(expr .+)'
-		my ($variable, $shell_expression) = ($1, $3);
-		$python_expression = convert_variable_initialisation($shell_expression);
-		return "$variable = $python_expression";
-	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$\(\((.+)\)\)/) {
-		#handles variable initialisation involving 'var=$((.+))'
-		my ($variable, $shell_expression) = ($1, $2);
-		$python_expression = convert_variable_initialisation($shell_expression);
-		return "$variable = $python_expression";
+} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=(`|\$\()expr (.+)[`)]/) {
+#handles variable initialisation involving 'var=`expr .+`' or 'var=$(expr .+)'
+my ($variable, $shell_expression) = ($1, $3);
+$python_expression = convert_variable_initialisation($shell_expression);
+return "$variable = $python_expression";
+} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$\(\((.+)\)\)/) {
+#handles variable initialisation involving 'var=$((.+))'
+my ($variable, $shell_expression) = ($1, $2);
+$python_expression = convert_variable_initialisation($shell_expression);
+return "$variable = $python_expression";
 	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$#/) {
 		#handles variable initialisation involving 'var=$#'
 		import("sys");
@@ -289,7 +303,7 @@ sub convert_operator {
 
 }
 
-#converts variable initialisations involving var=`expr .+` and var=$((.+))
+#converts variable initialisations involving var=`expr .+`, var=$(expr .+) and var=$((.+))
 sub convert_variable_initialisation {
 	my $shell_exp = $_[0];
 	$shell_exp =~ s/\s+/ /g; #condenses whitespace to increase readability

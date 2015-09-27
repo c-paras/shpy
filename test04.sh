@@ -15,7 +15,7 @@ echo $test1 $test2 > file2
 echo "this is a test" > $test_file3
 touch file4 #empty file
 mkdir dir1
-sleep 3 #delay to account for latency
+sleep 4 #delay to account for latency
 
 #displays info about this file
 ls test04.sh
@@ -56,7 +56,7 @@ wc -c $test_file3
 
 #copies file2 to dir1
 cp $test_file3 dir1/
-sleep 3 #delay to account for latency
+sleep 4 #delay to account for latency
 ls -l dir1
 
 #removes test files

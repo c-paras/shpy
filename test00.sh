@@ -47,6 +47,16 @@ echo -n "this is a'' test"
 echo -n "this is a 'test"
 echo -n "this i'''s a test"
 
+#back quotes and shell arithmetic
+echo $(expr 5 - 2)
+echo `expr 5 / 2`
+echo $((5 ** 2))
+
+#back quotes and shell arithmetic
+echo -n $(expr 5 '*' 2)
+echo -n `expr 5 % 2`
+echo -n $((5 * 2))
+
 echo this is a $test #unquoted string
 echo "this is a $test"
 echo 'this is a $test'

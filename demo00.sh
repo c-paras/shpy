@@ -1,39 +1,21 @@
 #!/bin/sh
-#This script prints a sequence of integers between given bounds
+#This script lists the days of the week and the months of the year
 
-#obtains input parameters
-if test $# -lt 2
-then
-	echo "Usage: $0 <min> <optional increment> <max>"
-	exit 1
-elif [ $# -eq 2 ]
-then
-	min=$1
-	inc=1
-	max=$2
-elif [ $# -eq 3 ]
-then
-	min=$1
-	inc=$2
-	max=$3
-fi
+i=0
 
-#aborts if invalid parameters were supplied
-if test $inc -eq 0
-then
-	echo $0: increment cannot be zero
-	exit 1
-elif test $max -le $min
-then
-	echo $0: max must be greater than min
-	exit 1
-fi
-
-i=$min
-
-#prints sequence of integers
-while test $i -le $max
+#displays days of the week
+for day in Mon Tue Wed Thu Fri
 do
-	echo $i
-	i=`expr $i + $inc`
+	i=`expr $i + 1`
+	echo "Day no. $i is $day"
+done
+
+echo #group seperator
+i=0
+
+#displays months of the year
+for month in Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+do
+	i=$(($i + 1))
+	echo "Month no. $i is" $month
 done

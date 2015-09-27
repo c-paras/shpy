@@ -37,12 +37,12 @@ do
 	then
 		#compares output of shell and python code for input args file1 and file2
 		sh "$file" file1 file2 > $tmp1
-		sleep 1 #delay to account for latency
+		sleep 2 #delay to account for latency
 		~/ass1/shpy.pl "$file" > $code
 		python -u $code file1 file2 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
-	elif [ "$base" == "demo00" ]
+	elif [ "$base" == "demo03" ]
 	then
 		#compares output of shell and python code for sequence -4 3 18
 		sh "$file" -4 3 18 > $tmp1
@@ -68,11 +68,10 @@ do
 		abort_tests "$base"
 	elif [ "$base" == "demo04" ]
 	then
-		#compares output of shell and python code and displays recomended input
-		echo "Recommended input: hello <enter> world <enter> hello <enter> world"
-		sh "$file" > $tmp1
+		#compares output of shell and python code and provides stdin
+		sh "$file" < examples/input > $tmp1
 		~/ass1/shpy.pl "$file" > $code
-		python -u $code > $tmp2
+		python -u $code < examples/input > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	else
