@@ -52,10 +52,30 @@ do
 	echo $arg
 done
 
-#for loop iterating over $@
-for arg in $@
+#for loop iterating over "$*"
+for arg in "$*"
+do
+	echo $arg
+done
+
+#for loop iterating over $*
+for arg in $*
+do
+	echo $arg
+done
+
+#for loop iterating over "$@"
+for arg in "$@"
 do
         echo $arg
+done
+
+test=10 #dummy variable
+
+#for loop iterating over a mixture of variables and strings
+for arg in test '$test'    "$test"    $test  10
+do
+	echo $arg
 done
 
 #cmp test condition

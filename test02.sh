@@ -5,6 +5,8 @@
 #basic variable initialisation
 var0="this is a test"
 echo $var0
+var1="$var0"
+echo $var1
 var=65536
 echo $var
 var=$#

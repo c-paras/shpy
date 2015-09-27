@@ -182,8 +182,10 @@ sub parse_line {
 		return "$1 = sys.stdin.readline().rstrip()";
 	} elsif ($line =~ /^for ([^ ]+) in \"\$\*\"$/) {
 		#handles for loops involving "$*"
+		my $loop_variable = $1;
 		import("sys");
-		return "for $1 in ' '.join(sys.argv[1:]):";
+		$tab_count =~ s/\t//; #decrements tab count
+		return "$loop_variable = ' '.join(sys.argv[1:])";
 	} elsif ($line =~ /^for ([^ ]+) in \"?\$[\@\*]/) {
 		#handles for loops involving $[@*] or "$@"
 		import("sys");
