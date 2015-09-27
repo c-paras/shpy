@@ -101,12 +101,9 @@ sub parse_line {
 		if ($arg2 =~ /\$[\@\*]/) {
 			$system_call = "['$cmd', '$options', $first_arg] + $second_arg" if $options;
 			$system_call = "['$cmd', $first_arg] + $second_arg" if !$options;
-} else {#		} elsif ($arg2 =~ /\$.+/) {
+		} else {
 			$system_call = "['$cmd', '$options', $first_arg, $second_arg]" if $options;
 			$system_call = "['$cmd', $first_arg, $second_arg]" if !$options;
-#		} else {
-#			$system_call = "['$cmd', '$options', '$first_arg', '$second_arg']" if $options;
-#			$system_call = "['$cmd', '$first_arg', '$second_arg']" if !$options;
 		}
 
 		import("subprocess");
@@ -123,12 +120,9 @@ sub parse_line {
 		if ($args =~ /\$[\@\*]/) {
 			$system_call = "['$cmd', '$options'] + $arg" if $options;
 			$system_call = "['$cmd'] + $arg" if !$options;
-} else {#		} elsif ($args =~ /\$.+/) {
+		} else {
 			$system_call = "['$cmd', '$options', $arg]" if $options;
 			$system_call = "['$cmd', $arg]" if !$options;
-#		} else {
-#			$system_call = "['$cmd', '$options', '$arg']" if $options;
-#			$system_call = "['$cmd', '$arg']" if !$options;
 		}
 
 		import("subprocess");

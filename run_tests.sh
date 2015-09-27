@@ -33,6 +33,14 @@ do
 		python -u $code t e s t > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
+	elif [ "$base" == "test04" ]
+	then
+		#compares output of shell and python code for input args file1 and file2
+		sh "$file" file1 file2 > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code file1 file2 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
 	elif [ "$base" == "demo00" ]
 	then
 		#compares output of shell and python code for sequence -4 3 18
