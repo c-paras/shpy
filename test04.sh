@@ -13,11 +13,11 @@ test_file3=file3
 echo $test1 $test2 $test3 > $test_file1
 echo $test1 $test2 > file2
 echo "this is a test" > $test_file3
-touch file4 #empty file
+touch file4 #creates an empty file
 mkdir dir1
 sleep 4 #delay to account for latency
 
-#displays info about this file
+#displays info about this script
 ls test04.sh
 ls -l test04.sh
 ls -lastr test04.sh
@@ -37,7 +37,7 @@ then
 	chmod 777 file2
 fi
 
-#displays direcotry stats
+#displays directory stats
 ls
 ls -l
 ls -CmS

@@ -23,6 +23,7 @@ do
 	else
 		odd=$(($odd + $num))
 	fi
+
 done
 
 echo The sum of all even numbers is $even

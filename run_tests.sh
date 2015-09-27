@@ -17,40 +17,7 @@ for file in demo??.sh test??.sh
 do
 	base=`basename "$file" .sh`
 
-	if [ "$base" == "test02" ]
-	then
-		#compares output of shell and python code for input args of 4 and 5
-		sh "$file" 4 5 > $tmp1
-		~/ass1/shpy.pl "$file" > $code
-		python -u $code 4 5 > $tmp2
-		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
-		abort_tests "$base"
-	elif [ "$base" == "test03" ]
-	then
-		#compares output of shell and python code for input args of t, e, s, t
-		sh "$file" t e s t > $tmp1
-		~/ass1/shpy.pl "$file" > $code
-		python -u $code t e s t > $tmp2
-		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
-		abort_tests "$base"
-	elif [ "$base" == "test04" ]
-	then
-		#compares output of shell and python code for input args file1 and file2
-		sh "$file" file1 file2 > $tmp1
-		sleep 2 #delay to account for latency
-		~/ass1/shpy.pl "$file" > $code
-		python -u $code file1 file2 > $tmp2
-		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
-		abort_tests "$base"
-	elif [ "$base" == "demo03" ]
-	then
-		#compares output of shell and python code for sequence -4 3 18
-		sh "$file" -4 3 18 > $tmp1
-		~/ass1/shpy.pl "$file" > $code
-		python -u $code -4 3 18 > $tmp2
-		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
-		abort_tests "$base"
-	elif [ "$base" == "demo01" ]
+	if [ "$base" == "demo01" ]
 	then
 		#compares output of shell and python code for dimension 8 by 12
 		sh "$file" 8 12 > $tmp1
@@ -66,12 +33,45 @@ do
 		python -u $code -4 5 10 -15 100 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
+	elif [ "$base" == "demo03" ]
+	then
+		#compares output of shell and python code for sequence -4 3 18
+		sh "$file" -4 3 18 > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code -4 3 18 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
 	elif [ "$base" == "demo04" ]
 	then
 		#compares output of shell and python code and provides stdin
 		sh "$file" < examples/input > $tmp1
 		~/ass1/shpy.pl "$file" > $code
 		python -u $code < examples/input > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "test02" ]
+	then
+		#compares output of shell and python code for input args of 4 and 5
+		sh "$file" 4 5 > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code 4 5 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "test03" ]
+	then
+		#compares output of shell and python code for input args t, e, s, t
+		sh "$file" t e s t > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code t e s t > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "test04" ]
+	then
+		#compares output of shell and python code for input args file1 and file2
+		sh "$file" file1 file2 > $tmp1
+		sleep 2 #delay to account for latency
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code file1 file2 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	else

@@ -10,7 +10,7 @@ do
 	echo "Day no. $i is $day"
 done
 
-echo #group seperator
+echo #group separator
 i=0
 
 #displays months of the year

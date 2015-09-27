@@ -1,5 +1,5 @@
 #!/bin/sh
-#This script demonstrates various cases involving echo and echo -n
+#This script demonstrates various uses of echo and echo -n
 #A combination of no quotes, single quotes, double quotes and mixed quotes are included
 #Variable interpolation and variable concatenation is also included
 
@@ -97,7 +97,7 @@ echo -n this is a$test$test"" #leading and trailing chars
 echo -n this is a $test$test''
 echo -n this is a ''$test$test$test
 echo -n this is a''$test$test$test
-echo -n this is a $test:
+echo -n this is a $test: #trailing : char
 echo -n this is a $test$test,
 echo -n this is a $test%$test
 
@@ -111,8 +111,7 @@ echo -n "this is a ''$test$test$test"
 echo -n "this is a''$test$test$test"
 echo -n "this is a $test:"
 echo -n "this is a $test$test,"
-echo -n "this is a $test%$test" #% seperator
-
+echo -n "this is a $test%$test" #% separator
 
 #empty strings with newlines
 echo """"

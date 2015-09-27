@@ -24,8 +24,8 @@ while ($line = <>) {
 
 	if ($line =~ /^#!/ && $. == 1) {
 		#converts hashbang line if present
-                $interpreter = "#!/usr/bin/python2.7 -u";
-        } else {
+		$interpreter = "#!/usr/bin/python2.7 -u";
+	} else {
 		#converts and appends all other lines to python code
 		$line = parse_line($line);
 		push @code, $leading_whitespace.$line;
@@ -73,7 +73,7 @@ sub parse_line {
 		#converts echo without args to print without args
 		return "print";
 	} elsif ($line =~ /^echo (-n )?(`|\$\()expr (.+)[`)]/) {
-		#handles echo an echo -n with back quotes
+		#handles echo and echo -n with back quotes
 		my ($print_newline, $shell_exp) = ($1, $3);
 		$python_expression = convert_variable_initialisation($shell_exp);
 		return "print $python_expression" if !$print_newline;
@@ -102,9 +102,10 @@ sub parse_line {
 		#converts all other calls to echo to calls to print
 		return convert_echo($1, 1);
 	} elsif ($line =~ /^(echo `|echo \$\()?(chmod|cp|mv|join)[`)]?( -.+)* (.+) (.+)/) {
+		#converts the unix commands chmod, cp, mv and join into system calls
 		my ($cmd, $options, $arg1, $arg2) = ($2, $3, $4, $5);
 
-		$options =~ s/ /', '/g if $options; #seperates options
+		$options =~ s/ /', '/g if $options; #separates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 
 		#handles the arguments "$*", $[@*], $[0-9]+ and $.+ separately
@@ -123,11 +124,12 @@ sub parse_line {
 		import("subprocess");
 		return "subprocess.call($system_call)";
 	} elsif ($line =~ /^(echo `|echo \$\()?($commands|$filters)[`)]?( -.+)* (.+)/) {
+		#converts various other unix commands and filters into system calls
 		my ($cmd, $options, $args) = ($2, $3, $4);
-		$options =~ s/ /', '/g if $options; #seperates options
+		$options =~ s/ /', '/g if $options; #separates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 
-                #handles the arguments "$*", $[@*], $[0-9]+ and $.+ separately
+		#handles the arguments "$*", $[@*], $[0-9]+ and $.+ separately
 		my $arg = map_option_arg($args);
 
 		#generates system call string
@@ -142,23 +144,24 @@ sub parse_line {
 		import("subprocess");
 		return "subprocess.call($system_call)";
 	} elsif ($line =~ /^(echo `|echo \$\()?(ls|pwd|id|date)[`)]?( -.+)*/) {
+		#converts the unix commands ls, pwd, id and date into system calls
 		my ($cmd, $options) = ($2, $3);
-		$options =~ s/ /', '/g if $options; #seperates options
+		$options =~ s/ /', '/g if $options; #separates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 		$system_call = "['$cmd', '$options']" if $options;
 		$system_call = "['$cmd']" if !$options;
 		import("subprocess");
 		return "subprocess.call($system_call)";
-} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=(`|\$\()expr (.+)[`)]/) {
-#handles variable initialisation involving 'var=`expr .+`' or 'var=$(expr .+)'
-my ($variable, $shell_expression) = ($1, $3);
-$python_expression = convert_variable_initialisation($shell_expression);
-return "$variable = $python_expression";
-} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$\(\((.+)\)\)/) {
-#handles variable initialisation involving 'var=$((.+))'
-my ($variable, $shell_expression) = ($1, $2);
-$python_expression = convert_variable_initialisation($shell_expression);
-return "$variable = $python_expression";
+	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=(`|\$\()expr (.+)[`)]/) {
+		#handles variable initialisation involving 'var=`expr .+`' or 'var=$(expr .+)'
+		my ($variable, $shell_expression) = ($1, $3);
+		$python_expression = convert_variable_initialisation($shell_expression);
+		return "$variable = $python_expression";
+	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$\(\((.+)\)\)/) {
+		#handles variable initialisation involving 'var=$((.+))'
+		my ($variable, $shell_expression) = ($1, $2);
+		$python_expression = convert_variable_initialisation($shell_expression);
+		return "$variable = $python_expression";
 	} elsif ($line =~ /^([a-zA-Z_][a-zA-Z0-9_]*)=\$#/) {
 		#handles variable initialisation involving 'var=$#'
 		import("sys");
@@ -207,10 +210,12 @@ return "$variable = $python_expression";
 		#handles for loops which iterate over a list
 		return map_for_loops($1, $2);
 	} elsif ($line =~ /^for ([^ ]+) in (.+)/) {
+		#handles for loops which iterate over files
 		my ($loop_variable, $file_type) = ($1, $2);
 		import("glob");
 		return "for $loop_variable in sorted(glob.glob(\"$file_type\")):";
 	} elsif ($line =~ /^while read ([^ ])/) {
+		#converts loops which obtain user input
 		import("sys");
 		return "for $1 in sys.stdin:";
 	} elsif ($line =~ /^(if|elif|while) (! )?(true|false)/) {
@@ -224,7 +229,7 @@ return "$variable = $python_expression";
 		my ($control, $negation, $cmd, $options, $file1, $file2) = ($1, $2, $3, $4, $5, $6);
 		$file1 = map_option_arg($file1);
 		$file2 = map_option_arg($file2);
-		$options =~ s/ /', '/g if $options; #seperates options
+		$options =~ s/ /', '/g if $options; #separates options
 		$options =~ s/^', '// if $options; #removes empty leading option
 		$system_call = "['$cmd', '$options', $file1, $file2]" if $options;
 		$system_call = "['$cmd', $file1, $file2]" if !$options;
@@ -246,10 +251,9 @@ return "$variable = $python_expression";
 		return "$control $python_expression:" if !$negation;
 		return "$control not ($python_expression):" if $negation;
 	} elsif ($line =~ /^:/) {
-		#matches empty statements
-		return "pass";
+		return "pass"; #matches empty statements
 	} elsif ($line =~ /^(break|continue)/) {
-		return "$1";
+		return "$1"; #matches break, continue
 	} elsif ($line =~ /^else/) {
 		return "else:"; #translates 'else' into 'else:'
 	} elsif ($line =~ /^(do|done|then|fi)/) {
@@ -257,8 +261,7 @@ return "$variable = $python_expression";
 	} elsif ($line =~ /^$/) {
 		return ""; #transfers blank lines for correct alignment of comments
 	} else {
-		#converts all other lines into untranslated comments
-		return "#$line [UNTRANSLATED CODE]";
+		return "#$line [UNTRANSLATED CODE]"; #converts all other lines into untranslated comments
 	}
 }
 
@@ -300,7 +303,6 @@ sub convert_operator {
 	} elsif ($operator eq "ge") {
 		return ">=";
 	}
-
 }
 
 #converts variable initialisations involving var=`expr .+`, var=$(expr .+) and var=$((.+))
@@ -379,6 +381,7 @@ sub convert_echo {
 		$string_to_print =~ s/, $//; #removes trailing ', '
 		return "print $string_to_print";
 	} else {
+		import("sys");
 		return "print $string_to_print\n".$leading_whitespace."sys.stdout.write('')" if $string_to_print;
 		return "sys.stdout.write('')";
 	}
@@ -392,7 +395,7 @@ sub append_variables {
 	#deals with the case of the variable being '$var1[$varn]*'
 	if ($word =~ /^'+(.+)'+$/ && $interpolate_variables == 0) {
 		$string_to_print .= "\"$1\", ";
-		return;	
+		return;
 	}
 
 	$words[0] =~ s/'//g if $interpolate_variables == 0;
@@ -426,7 +429,6 @@ sub append_variables {
 		$i++;
 	}
 
-	
 	#appends trailing '+ whenever entire string is double quoted
 	$string_to_print .= "\"$1\", " if $word =~ /('+)$/ && $interpolate_variables == 1;
 }
@@ -487,7 +489,7 @@ sub map_option_arg {
 sub map_file_test {
 	my ($test_operator, $file) = @_;
 	import("os");
-	$file = map_option_arg($file);
+	$file = map_option_arg($file); #interprets variables first
 
 	#determines python command based on test operator
 	if ($test_operator eq "-e") {
@@ -561,7 +563,7 @@ sub map_if_while {
 			if ($terms[$i] =~ /^\".*\"$/ || $terms[$i] =~ /^'.*'$/) {
 				$python_expression .= "$terms[$i]";
 			} else {
-				$python_expression .= "'$terms[$i]'"; 
+				$python_expression .= "'$terms[$i]'";
 			}
 		} else {
 			#maps remaining terms as integers
@@ -574,12 +576,10 @@ sub map_if_while {
 	return $python_expression;
 }
 
-#map for loops to their python analogues
+#maps for loops to their python analogues
 sub map_for_loops {
 	my ($loop_variable, $args) = @_;
-	my $str = "";
 	my @args = $args =~ /(".+?"|'.+?'|\S+)/g; #splits string at spaces and quotes
-
 	my $loop_args = "";
 	my $i = 0;
 

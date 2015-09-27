@@ -1,5 +1,5 @@
 #This script demonstrates poorly formatted code
-#Inconsistant indentation and unnecessary whitespace is included
+#Inconsistent indentation and unnecessary whitespace is included
 #Note the intended absence of the hashbang line
 
 	  test=5 #dummy variable used to assess variable interpolation

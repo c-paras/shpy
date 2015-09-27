@@ -19,4 +19,4 @@ Date		Time		Activity	Description
 26/09/2015	15:00-19:30	debugging	found bug in for loops and fixed overlooked comparison, negation and boolean operators in test, added more tests
 27/09/2015	08:30-14:30	testing		added more tests to the suite of tests, found bug in echo
 27/09/2015	16:00-18:30	testing		completed all testing
-27/09/2015	19:00-19:30	coding		added code to handle back quotes in echo and updated related tests
+27/09/2015	19:00-20:30	coding		added code to handle back quotes in echo and updated related tests
