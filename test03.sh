@@ -14,7 +14,7 @@ then
 		echo second level of nesting
 
 		#triple test condition with negation and boolean -o and -a
-		if test a == b -o ! 5 -eq 5 -a ! -w /dev/null
+	      if test a == b -o ! 5 -eq 5 -a ! -w /dev/null #bad indentation
 		then
 			: #empty statement
 		else
@@ -87,7 +87,7 @@ fi
 #infinite loop with break
 while ! diff /dev/null test03.sh
 do
-	echo files are different
+	  echo files are different #bad indentation
 	break
 done
 

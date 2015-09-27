@@ -495,14 +495,14 @@ sub map_file_test {
 #maps all if/elif and while statements to their python analogues
 sub map_if_while {
 	my $expression = $_[0];
-	my @terms = $expression =~ /(".+"|'.+'|\S+)/g; #splits string at spaces and quotes
+	my @terms = $expression =~ /(".+?"|'.+?'|\S+)/g; #splits string at spaces and quotes
 	my $python_expression = "";
 	my $i = 0;
 
 	#maps each term of the shell expression to its analogue in python
 	while ($i <= $#terms) {
 		#skips empty terms and [ or ] terms
-		while ($terms[$i] =~ /^\s*$/ || $terms[$i] =~ /\]|\[/) {
+		while ($terms[$i] =~ /^\s*$/ || $terms[$i] =~ /^[][]$/) {
 			$i++;
 			last if $i > $#terms;
 		}
@@ -564,7 +564,7 @@ sub map_if_while {
 sub map_for_loops {
 	my ($loop_variable, $args) = @_;
 	my $str = "";
-	my @args = $args =~ /(".+"|'.+'|\S+)/g; #splits string at spaces and quotes
+	my @args = $args =~ /(".+?"|'.+?'|\S+)/g; #splits string at spaces and quotes
 
 	my $loop_args = "";
 	my $i = 0;

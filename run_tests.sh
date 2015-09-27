@@ -13,7 +13,7 @@ abort_tests() {
 }
 
 #runs all demo and test files in the current directory
-for file in test??.sh demo??.sh
+for file in demo??.sh test??.sh
 do
 	base=`basename "$file" .sh`
 
@@ -37,6 +37,7 @@ do
 	then
 		#compares output of shell and python code for input args file1 and file2
 		sh "$file" file1 file2 > $tmp1
+		sleep 1 #delay to account for latency
 		~/ass1/shpy.pl "$file" > $code
 		python -u $code file1 file2 > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
@@ -63,6 +64,15 @@ do
 		sh "$file" -4 5 10 -15 100 > $tmp1
 		~/ass1/shpy.pl "$file" > $code
 		python -u $code -4 5 10 -15 100 > $tmp2
+		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
+		abort_tests "$base"
+	elif [ "$base" == "demo04" ]
+	then
+		#compares output of shell and python code and displays recomended input
+		echo "Recommended input: hello <enter> world <enter> hello <enter> world"
+		sh "$file" > $tmp1
+		~/ass1/shpy.pl "$file" > $code
+		python -u $code > $tmp2
 		diff $tmp1 $tmp2 && echo "Test: $base SUCCEEDED" && continue
 		abort_tests "$base"
 	else
